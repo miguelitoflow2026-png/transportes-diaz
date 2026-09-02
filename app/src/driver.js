@@ -4,7 +4,7 @@ import { supabase } from './supabase.js';
 import { state } from './state.js';
 import { esc, icon, showToast, showShell, fmtHM, fmtHMshort, fmtDate, fmtTime, formatCLP } from './lib.js';
 import { loadDriverContext, fetchActiveTrip, createTrip, updateTrip, finalizeTrip, previewAmounts, getMyTrips, getContractPdfUrl, audit } from './api.js';
-import { startTracking, stopTracking, pauseTracking, resumeTracking, getLastPosition, clearTrackingState, setWaitSeconds, setPauseSeconds, haversineMeters } from './tracing.js';
+import { startTracking, stopTracking, pauseTracking, resumeTracking, getLastPosition, clearTrackingState, setWaitSeconds, setPauseSeconds, haversineMeters, loadTrackingState } from './tracing.js';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 

@@ -38,7 +38,8 @@ export function saveTrackingState(tripId, data) {
     lastLat: data.lastLat ?? null,
     lastLon: data.lastLon ?? null,
     lastRecordedAt: data.lastRecordedAt ?? null,
-    routePoints: data.routePoints ?? [], // [{lat, lon, accuracy, timestamp}]
+    routePoints: data.routePoints ?? [],
+    syncedCount: data.syncedCount ?? 0, // para no duplicar en sync
     updatedAt: Date.now(),
   };
   try {
@@ -115,12 +116,14 @@ export async function syncToSupabase(tripId, data) {
     console.warn('Sync trips falló:', e.message);
   }
 
-  // 2) Insertar últimas posiciones en trip_positions vía RLS (sin recalcular km server-side)
-  // Usamos insert directo; km ya se sincronizó arriba con el valor del cliente.
+  // 2) Insertar solo puntos nuevos (no duplicar) — si offline, se reintenta en próximo sync
   if (data.routePoints && data.routePoints.length > 0) {
-    // Enviar solo los últimos 10 puntos no sincronizados para no saturar
-    const toSync = data.routePoints.slice(-10);
-    const rows = toSync.map(p => ({
+    const from = data.syncedCount ?? 0;
+    const toSync = data.routePoints.slice(from);
+    if (toSync.length === 0) return;
+    // Batch de máx 20 por sync para no saturar
+    const batch = toSync.slice(0, 20);
+    const rows = batch.map(p => ({
       trip_id: tripId,
       driver_id: state.user?.id,
       lat: p.lat,
@@ -132,10 +135,14 @@ export async function syncToSupabase(tripId, data) {
       recorded_at: p.timestamp || new Date().toISOString(),
     }));
     try {
-      await supabase.from('trip_positions').insert(rows);
+      const { error } = await supabase.from('trip_positions').insert(rows);
+      if (error) throw error;
+      // Avanzar cursor solo si éxito
+      const newSynced = from + batch.length;
+      saveTrackingState(tripId, { ...data, syncedCount: newSynced });
     } catch (e) {
-      // Silenciar duplicados por RLS o red
-      console.warn('Sync positions falló:', e.message);
+      if (!navigator.onLine) console.warn('Sync positions offline, reintentará:', e.message);
+      else console.warn('Sync positions falló:', e.message);
     }
   }
 }
@@ -162,6 +169,7 @@ export function startTracking(tripId, onPositionUpdate) {
   let lastLat = null;
   let lastLon = null;
   let lastRecordedAt = null;
+  let syncedCount = 0;
 
   if (saved) {
     totalKm = saved.totalKm ?? 0;
@@ -203,11 +211,12 @@ export function startTracking(tripId, onPositionUpdate) {
       }
     }
     routePoints = cleaned;
-    // Si se limpiaron puntos, persistir el estado limpio para no volver a mostrar mancha
+    syncedCount = saved.syncedCount ?? 0;
+    if (syncedCount > routePoints.length) syncedCount = routePoints.length;
     if (cleaned.length !== loadedPoints.length) {
-      saveTrackingState(tripId, { totalKm, totalWaitSeconds, totalPauseSeconds, lastLat, lastLon, lastRecordedAt, routePoints: cleaned });
+      saveTrackingState(tripId, { totalKm, totalWaitSeconds, totalPauseSeconds, lastLat, lastLon, lastRecordedAt, routePoints: cleaned, syncedCount });
     }
-    console.log('Estado de tracking recuperado:', { totalKm, points: routePoints.length, cleanedFrom: loadedPoints.length });
+    console.log('Estado de tracking recuperado:', { totalKm, points: routePoints.length, cleanedFrom: loadedPoints.length, syncedCount });
   }
 
   // Solicitar Wake Lock
@@ -310,7 +319,7 @@ export function startTracking(tripId, onPositionUpdate) {
       console.log('[GPS polyline] punto agregado', { lat: latitude.toFixed(5), lon: longitude.toFixed(5), totalKm, points: routePoints.length });
     }
 
-    // Persistir localStorage en cada posición válida
+    // Persistir localStorage en cada posición válida (preservar syncedCount)
     saveTrackingState(tripId, {
       totalKm,
       totalWaitSeconds,
@@ -319,6 +328,7 @@ export function startTracking(tripId, onPositionUpdate) {
       lastLon,
       lastRecordedAt,
       routePoints,
+      syncedCount,
     });
 
     // Notificar a la UI (para actualizar km y mapa) — incluye detección de llegada si el caller provee puntoFin
@@ -351,12 +361,21 @@ export function startTracking(tripId, onPositionUpdate) {
 
   // Timer de sync periódico a Supabase
   syncTimer = setInterval(async () => {
+    if (!navigator.onLine) { console.log('Sync omitido: offline'); return; }
     const currentState = loadTrackingState(tripId);
     if (currentState && currentState.lastLat != null) {
       await syncToSupabase(tripId, currentState);
       console.log('Sync a Supabase completado');
     }
   }, SYNC_INTERVAL_MS);
+
+  // Reintento inmediato al volver online
+  const onOnline = async () => {
+    console.log('Conexión recuperada, reintentando sync...');
+    const s = loadTrackingState(tripId);
+    if (s && s.lastLat != null) await syncToSupabase(tripId, s);
+  };
+  window.addEventListener('online', onOnline);
 }
 
 export function stopTracking(tripId) {
@@ -445,6 +464,7 @@ export function setWaitSeconds(tripId, seconds) {
     lastLon: saved.lastLon ?? null,
     lastRecordedAt: saved.lastRecordedAt ?? null,
     routePoints: saved.routePoints ?? [],
+    syncedCount: saved.syncedCount ?? 0,
   });
 }
 
@@ -458,5 +478,6 @@ export function setPauseSeconds(tripId, seconds) {
     lastLon: saved.lastLon ?? null,
     lastRecordedAt: saved.lastRecordedAt ?? null,
     routePoints: saved.routePoints ?? [],
+    syncedCount: saved.syncedCount ?? 0,
   });
 }

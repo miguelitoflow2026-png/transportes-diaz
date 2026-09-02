@@ -170,8 +170,44 @@ export function startTracking(tripId, onPositionUpdate) {
     lastLat = saved.lastLat;
     lastLon = saved.lastLon;
     lastRecordedAt = saved.lastRecordedAt;
-    routePoints = saved.routePoints ?? [];
-    console.log('Estado de tracking recuperado:', { totalKm, points: routePoints.length });
+    let loadedPoints = saved.routePoints ?? [];
+    // Limpieza de puntos viejos erráticos (mancha negra/V): filtrar 0,0, NaN, fuera de Chile y saltos >50km entre puntos consecutivos
+    const CHILE_BOUNDS = { latMin: -56, latMax: -17, lonMin: -76, lonMax: -66 };
+    const cleaned = [];
+    for (const p of loadedPoints) {
+      if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) continue;
+      if (p.lat === 0 && p.lon === 0) continue;
+      if (p.lat < CHILE_BOUNDS.latMin || p.lat > CHILE_BOUNDS.latMax || p.lon < CHILE_BOUNDS.lonMin || p.lon > CHILE_BOUNDS.lonMax) {
+        console.warn('[GPS limpieza] punto fuera de Chile descartado', p);
+        continue;
+      }
+      if (cleaned.length > 0) {
+        const prev = cleaned[cleaned.length - 1];
+        const d = haversineMeters(prev.lat, prev.lon, p.lat, p.lon);
+        if (d > 50000) { // >50km entre puntos consecutivos es outlier (ej. salto Santiago-Osorno)
+          console.warn('[GPS limpieza] salto >50km descartado', { prev, p, d });
+          continue;
+        }
+      }
+      cleaned.push(p);
+    }
+    if (cleaned.length !== loadedPoints.length) {
+      console.log(`[GPS limpieza] ${loadedPoints.length} → ${cleaned.length} puntos (filtrados ${loadedPoints.length - cleaned.length})`);
+      // Si se filtraron muchos puntos, recalcular lastLat/Lon desde el último válido
+      if (cleaned.length > 0) {
+        const last = cleaned[cleaned.length - 1];
+        lastLat = last.lat; lastLon = last.lon;
+        lastRecordedAt = last.timestamp;
+      } else {
+        lastLat = null; lastLon = null; lastRecordedAt = null;
+      }
+    }
+    routePoints = cleaned;
+    // Si se limpiaron puntos, persistir el estado limpio para no volver a mostrar mancha
+    if (cleaned.length !== loadedPoints.length) {
+      saveTrackingState(tripId, { totalKm, totalWaitSeconds, totalPauseSeconds, lastLat, lastLon, lastRecordedAt, routePoints: cleaned });
+    }
+    console.log('Estado de tracking recuperado:', { totalKm, points: routePoints.length, cleanedFrom: loadedPoints.length });
   }
 
   // Solicitar Wake Lock

@@ -613,16 +613,29 @@ function initLeafletMap() {
 
 function updateMapRoute(routePoints) {
   if (!leafletMap || !routePolyline) return;
-  if (!routePoints || routePoints.length === 0) return;
-
-  const latLngs = routePoints.map(p => [p.lat, p.lon]).filter(p => p[0] != null && p[1] != null);
-  if (latLngs.length > 0) {
-    routePolyline.setLatLngs(latLngs);
-    // Ajustar bounds solo si followUser está activo
-    if (followUser) {
-      leafletMap.fitBounds(routePolyline.getBounds(), { padding: [20, 20], maxZoom: 17 });
-    }
+  if (!routePoints || routePoints.length === 0) {
+    routePolyline.setLatLngs([]);
+    return;
   }
+  const latLngs = routePoints.map(p => [p.lat, p.lon]).filter(p => p[0] != null && p[1] != null && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+  if (latLngs.length === 0) return;
+  // Validar que no haya outliers que formen V gigante: si el bounds es >100km, no hacer fitBounds (evita zoom out por mancha)
+  const bounds = L.latLngBounds(latLngs);
+  const diagKm = haversineMeters(bounds.getSouthWest().lat, bounds.getSouthWest().lng, bounds.getNorthEast().lat, bounds.getNorthEast().lng) / 1000;
+  if (diagKm > 100) {
+    console.warn('[Mapa] ruta con bounds >100km, posible mancha, no se hace fitBounds', diagKm);
+    // Solo centrar en último punto sin ajustar zoom
+    if (followUser && latLngs.length > 0) {
+      leafletMap.setView(latLngs[latLngs.length - 1], leafletMap.getZoom(), { animate: false });
+    }
+  } else if (followUser && latLngs.length === 1) {
+    // Primer punto: centrar
+    leafletMap.setView(latLngs[0], 16, { animate: true });
+  } else if (followUser && latLngs.length <= 5) {
+    // Primeros puntos: ajustar bounds una vez
+    leafletMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 16, animate: true });
+  }
+  routePolyline.setLatLngs(latLngs);
 }
 
 function updateMapPosition(lat, lon, accuracy) {

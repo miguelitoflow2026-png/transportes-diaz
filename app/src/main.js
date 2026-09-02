@@ -2,6 +2,7 @@
 import './styles.css';
 import { supabase } from './supabase.js';
 import { state } from './state.js';
+import { audit } from './api.js';
 import * as gate from './gate.js';
 import * as driver from './driver.js';
 import * as admin from './admin.js';
@@ -63,6 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 export async function logout() {
   gate.resetToRoles();
+  audit('logout').catch(() => {});
   await supabase.auth.signOut().catch(() => {});
   reset();
   gate.render();

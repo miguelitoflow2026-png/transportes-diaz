@@ -31,6 +31,7 @@ export async function render() {
 }
 
 window.adminLogout = async () => {
+  api.audit('logout').catch(() => {});
   await supabase.auth.signOut().catch(() => {});
 };
 window.setAdminScreen = (s) => {
@@ -107,7 +108,7 @@ window.delClient = async (id) => {
     const n = await api.adminCountContractsForClient(id);
     if (n > 0) { showToast('No se puede eliminar: tiene contratos asociados'); return; }
     await api.adminDeleteClient(id);
-    api.audit('client_create', 'clients', id).catch(() => {});
+    api.audit('client_delete', 'clients', id).catch(() => {});
     showToast('Empresa eliminada');
     render();
   } catch (e) { showToast(e.message); }
@@ -221,7 +222,7 @@ window.saveContract = async () => {
     let contractId, auditAction;
     if (state.editingContractId) {
       contractId = state.editingContractId;
-      await api.adminUpdateContract(contractId, { name, client_id: clientId, status });
+      await api.adminUpdateContract(contractId, { name, client_id: clientId, status, vigencia_desde: vigenciaDesde });
       await api.adminReplaceCecos(contractId, cecosNames);
       auditAction = 'contract_update';
     } else {
@@ -246,7 +247,7 @@ window.saveContract = async () => {
 
     api.audit(auditAction, 'contracts', contractId).catch(() => {});
     state.editingContractId = null;
-    showToast(state.editingContractId === null && auditAction === 'contract_create' ? 'Contrato creado' : 'Contrato actualizado');
+    showToast(auditAction === 'contract_create' ? 'Contrato creado' : 'Contrato actualizado');
     render();
   } catch (e) { showToast(e.message); }
 };
@@ -308,7 +309,10 @@ window.addDriver = async () => {
 
 window.delDriver = async (id) => {
   try {
+    const n = await api.adminCountTripsByDriver(id);
+    if (n > 0) { showToast(`No se puede eliminar: tiene ${n} viaje(s). Mejor desactiva su usuario en lugar de borrarlo.`); return; }
     await api.invokeDeleteUser(id);
+    api.audit('user_delete', 'auth.users', id).catch(() => {});
     showToast('Conductor eliminado');
     render();
   } catch (e) { showToast(e.message); }
@@ -358,7 +362,10 @@ window.addVehicle = async () => {
 
 window.delVehicle = async (id) => {
   try {
+    const n = await api.adminCountTripsByVehicle(id);
+    if (n > 0) { showToast(`No se puede eliminar: tiene ${n} viaje(s).`); return; }
     await api.adminDeleteVehicle(id);
+    api.audit('vehicle_delete', 'vehicles', id).catch(() => {});
     showToast('Vehículo eliminado');
     render();
   } catch (e) { showToast(e.message); }

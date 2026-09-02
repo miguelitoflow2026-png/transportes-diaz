@@ -79,14 +79,8 @@ export async function previewAmounts(contractId, tripType, km, waitSecs, asOf) {
 }
 
 export async function getMyTrips() {
-  const { data, error } = await supabase
-    .from('trips')
-    .select('*, contracts(name), cecos(name)')
-    .eq('driver_id', state.user.id)
-    .eq('status', 'finalizado')
-    .order('start_time', { ascending: false });
-  if (error) throw new Error(error.message);
-  return data || [];
+  // Vía RPC SECURITY DEFINER: el conductor no tiene SELECT sobre contracts/cecos.
+  return unwrap(await supabase.rpc('get_my_trips'));
 }
 
 export async function getContractPdfUrl(pdfPath, seconds = 300) {
@@ -189,6 +183,24 @@ export async function adminAddVehicle(plate, model) {
 }
 export async function adminDeleteVehicle(id) {
   return unwrap(await supabase.from('vehicles').delete().eq('id', id));
+}
+
+export async function adminCountTripsByDriver(driverId) {
+  const { count, error } = await supabase
+    .from('trips')
+    .select('id', { count: 'exact', head: true })
+    .eq('driver_id', driverId);
+  if (error) throw new Error(error.message);
+  return count || 0;
+}
+
+export async function adminCountTripsByVehicle(vehicleId) {
+  const { count, error } = await supabase
+    .from('trips')
+    .select('id', { count: 'exact', head: true })
+    .eq('vehicle_id', vehicleId);
+  if (error) throw new Error(error.message);
+  return count || 0;
 }
 
 export async function adminFetchTrips(filters) {

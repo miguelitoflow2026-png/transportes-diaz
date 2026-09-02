@@ -3,7 +3,7 @@
 import { supabase } from './supabase.js';
 import { state } from './state.js';
 import { esc, icon, showToast, showShell, fmtHM, fmtHMshort, fmtDate, fmtTime, formatCLP } from './lib.js';
-import { loadDriverContext, fetchActiveTrip, createTrip, updateTrip, finalizeTrip, previewAmounts, getMyTrips, getContractPdfUrl } from './api.js';
+import { loadDriverContext, fetchActiveTrip, createTrip, updateTrip, finalizeTrip, previewAmounts, getMyTrips, getContractPdfUrl, audit } from './api.js';
 
 let ticker = null;
 let tickCount = 0;
@@ -454,7 +454,7 @@ async function loadHistorial() {
   el.className = '';
   el.innerHTML = trips.map((t) => `
       <div class="card">
-        <div class="row"><span style="font-weight:600; font-size:13px;">${esc(t.contracts?.name || '')}</span><span class="mini-label">${fmtDate(t.start_time)}</span></div>
+        <div class="row"><span style="font-weight:600; font-size:13px;">${esc(t.contract_name || '')}</span><span class="mini-label">${fmtDate(t.start_time)}</span></div>
         <div class="row"><span class="mini-label">${t.trip_type === 'urbano' ? 'Urbano' : 'Interurbano'} · ${fmtTime(t.start_time)}–${fmtTime(t.end_time)}</span></div>
         <div class="divider"></div>
         <div class="row">
@@ -500,6 +500,7 @@ function screenPerfil() {
 }
 window.driverLogout = async () => {
   stopTicker();
+  audit('logout').catch(() => {});
   await supabase.auth.signOut().catch(() => {});
 };
 

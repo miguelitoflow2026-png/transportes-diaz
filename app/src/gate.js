@@ -14,6 +14,7 @@ export function resetToRoles() {
 }
 
 window.gateSignOut = async () => {
+  audit('logout').catch(() => {});
   await supabase.auth.signOut().catch(() => {});
 };
 

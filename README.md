@@ -54,7 +54,7 @@ transportes-diaz/
 
 ### 2. Aplicar las migraciones
 
-Las migraciones van en orden `0001` → `0004`:
+Las migraciones van en orden `0001` → `0005`:
 
 ```bash
 supabase link --project-ref <REF>
@@ -62,7 +62,7 @@ supabase db push
 ```
 
 O, si prefieres el editor SQL del dashboard, pégalo en este orden:
-`0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_storage.sql`.
+`0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_storage.sql`, `0005_driver_trips.sql`.
 
 > Importante: ejecutar en orden. `0002` habilita RLS; de nada sirve sin `0001`.
 
@@ -98,7 +98,7 @@ clave personal. **Nunca se usa una contraseña compartida ni escrita en el códi
 y vehículos. Solo contiene datos maestros: **no crea usuarios ni claves**.
 
 ```sql
--- En el SQL Editor del dashboard, luego de aplicar 0001 → 0004:
+-- En el SQL Editor del dashboard, luego de aplicar 0001 → 0005:
 -- pega el contenido de supabase/seed.sql y ejecuta.
 ```
 

@@ -10,8 +10,7 @@ import 'leaflet/dist/leaflet.css';
 
 let ticker = null;
 let tickCount = 0;
-// tripVisual ya no se usa para GPS real; se mantiene para compatibilidad temporal si acaso
-const tripVisual = { routePoints: [[10, 90]] };
+
 
 // Estado de tracking GPS
 let currentWatchState = null; // 'conduccion' | 'espera' | null
@@ -129,7 +128,7 @@ function buildNav() {
     ['perfil', 'Perfil', 'user'],
   ];
   nav.innerHTML = labels
-    .map(([s, label, ic]) => `<button class="${state.driverScreen === s ? 'active' : ''}" onclick="goDriverScreen('${s}')">${icon(ic)}${label}</button>`)
+    .map(([s, label, ic]) => `<button class="${state.driverScreen === s ? 'active' : ''}" onclick="goDriverScreen('${s}')" aria-label="${label}" aria-current="${state.driverScreen === s ? 'page' : 'false'}">${icon(ic)}${label}</button>`)
     .join('');
 }
 
@@ -251,24 +250,24 @@ function screenSeleccion() {
     <div class="screen-sub">Selecciona contrato, centro de costo y vehículo</div>
     <div class="card">
       <div class="field">
-        <span class="label">Contrato / Empresa cliente</span>
-        <select id="selContrato" onchange="onContractChange(this.value)">
+        <label for="selContrato" class="label">Contrato / Empresa cliente</label>
+        <select id="selContrato" aria-label="Contrato / Empresa cliente" onchange="onContractChange(this.value)">
           <option value="">Selecciona un contrato…</option>
           ${contractOptions}
         </select>
       </div>
       <div style="height:12px;"></div>
       <div class="field">
-        <span class="label">Centro de costo (CECO)</span>
-        <select id="selCeco" ${!contract ? 'disabled' : ''} onchange="state.newTrip.cecoId=this.value">
+        <label for="selCeco" class="label">Centro de costo (CECO)</label>
+        <select id="selCeco" aria-label="Centro de costo" ${!contract ? 'disabled' : ''} onchange="state.newTrip.cecoId=this.value">
           <option value="">${contract ? 'Selecciona un CECO…' : 'Primero elige un contrato'}</option>
           ${cecoOptions}
         </select>
       </div>
       <div style="height:12px;"></div>
       <div class="field">
-        <span class="label">Vehículo a usar</span>
-        <select id="selVehiculo" onchange="state.newTrip.vehicleId=this.value">
+        <label for="selVehiculo" class="label">Vehículo a usar</label>
+        <select id="selVehiculo" aria-label="Vehículo a usar" onchange="state.newTrip.vehicleId=this.value">
           <option value="">Selecciona un vehículo…</option>
           ${vehicleOptions}
         </select>
@@ -336,15 +335,15 @@ function screenPuntosViaje() {
     <div class="screen-sub">Indica inicio y destino (opcional, ayuda al seguimiento)</div>
     <div class="card">
       <div class="field">
-        <span class="label">Punto de inicio</span>
-        <input id="inputInicio" type="text" placeholder="Ej: Av. Providencia 1200, Santiago" value="${esc(nt.puntoInicio?.display_name || '')}" oninput="onPuntoSearch('inicio', this.value)" autocomplete="off" />
+        <label for="inputInicio" class="label">Punto de inicio</label>
+        <input id="inputInicio" aria-label="Punto de inicio" type="text" placeholder="Ej: Av. Providencia 1200, Santiago" value="${esc(nt.puntoInicio?.display_name || '')}" oninput="onPuntoSearch('inicio', this.value)" autocomplete="off" />
         <div id="suggestInicio" class="suggest-box"></div>
         ${tieneInicio ? `<div style="margin-top:8px; font-size:12px; color:var(--good);">✓ ${esc(nt.puntoInicio.display_name)}</div>` : ''}
       </div>
       <div style="height:14px;"></div>
       <div class="field">
-        <span class="label">Punto de destino</span>
-        <input id="inputFin" type="text" placeholder="Ej: Aeropuerto SCL" value="${esc(nt.puntoFin?.display_name || '')}" oninput="onPuntoSearch('fin', this.value)" autocomplete="off" />
+        <label for="inputFin" class="label">Punto de destino</label>
+        <input id="inputFin" aria-label="Punto de destino" type="text" placeholder="Ej: Aeropuerto SCL" value="${esc(nt.puntoFin?.display_name || '')}" oninput="onPuntoSearch('fin', this.value)" autocomplete="off" />
         <div id="suggestFin" class="suggest-box"></div>
         ${tieneFin ? `<div style="margin-top:8px; font-size:12px; color:var(--good);">✓ ${esc(nt.puntoFin.display_name)}</div>` : '<div class="mini-label" style="margin-top:6px;">Si no indicas destino, podrás conducir igual.</div>'}
       </div>
@@ -801,7 +800,7 @@ function screenResumen() {
       <div class="row"><span class="mini-label">HORA INICIO — TÉRMINO</span><span style="font-size:12px;">${fmtTime(trip.start_time)} – ${fmtTime(new Date().toISOString())}</span></div>
     </div>
     <div class="field">
-      <span class="label">Tipo de viaje aplicado</span>
+      <label class="label">Tipo de viaje aplicado</label>
       <div class="toggle-group">
         <button class="${trip.trip_type === 'urbano' ? 'selected' : ''}" onclick="changeTripTypeAtSummary('urbano')">Urbano</button>
         <button class="${trip.trip_type === 'interurbano' ? 'selected' : ''}" onclick="changeTripTypeAtSummary('interurbano')">Interurbano</button>
@@ -816,8 +815,8 @@ function screenResumen() {
     </div>
     <div id="amountsBox" class="card"><div class="mini-label" style="text-align:center;">Calculando montos en el servidor…</div></div>
     <div class="field">
-      <span class="label">Observaciones (opcional)</span>
-      <textarea id="tripNotes" placeholder="Nombre del pasajero, motivo del viaje, notas…" maxlength="2000">${esc(trip.notes || '')}</textarea>
+      <label for="tripNotes" class="label">Observaciones (opcional)</label>
+      <textarea id="tripNotes" aria-label="Observaciones" placeholder="Nombre del pasajero, motivo del viaje, notas…" maxlength="2000">${esc(trip.notes || '')}</textarea>
     </div>
     <button class="btn btn-primary btn-block" onclick="confirmarViaje()">${icon('check')} Confirmar y guardar viaje</button>
   `;

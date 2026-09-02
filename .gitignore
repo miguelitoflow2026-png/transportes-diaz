@@ -1,0 +1,22 @@
+# Entorno y secretos
+.env
+.env.local
+.env.*.local
+app/.env
+app/.env.local
+
+# Dependencias y build
+node_modules/
+app/node_modules/
+app/dist/
+dist/
+.vite/
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log

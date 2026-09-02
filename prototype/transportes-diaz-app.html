@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transportes Díaz SpA — Sistema de Registro de Viajes</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root{
+  --primary:#1a237e;
+  --primary-light:#e8eaf6;
+  --surface:#f9f9f9;
+  --white:#ffffff;
+  --gray:#f3f3f3;
+  --border:#dadada;
+  --text:#1c1c1e;
+  --text-dim:#6b6b70;
+  --good:#1b7a43;
+  --wait:#b8860b;
+  --danger:#b3261e;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--surface);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit; cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+
+/* ---------- top tabs ---------- */
+.top-tabs{
+  display:flex; gap:0; background:var(--white); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:50;
+}
+.top-tabs button{
+  flex:1; padding:14px 8px; background:none; border:none; font-weight:600; font-size:13px;
+  color:var(--text-dim); border-bottom:3px solid transparent;
+}
+.top-tabs button.active{ color:var(--primary); border-bottom-color:var(--primary); }
+
+/* header contextual post-login */
+.header-role-label{ padding:14px 20px; font-weight:700; font-size:13px; color:var(--primary); flex:1; }
+.header-logout{
+  padding:14px 20px; background:none; border:none; font-weight:600; font-size:13px; color:var(--text-dim);
+}
+.header-logout:hover{ color:var(--danger); }
+
+/* portada de acceso (gate) */
+.gate-wrap{
+  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:var(--surface);
+}
+.gate-card{
+  width:100%; max-width:420px; background:var(--white); border:1px solid var(--border); border-radius:20px;
+  padding:36px 32px; box-shadow:0 10px 40px rgba(26,35,126,0.10);
+}
+.gate-logo{
+  width:56px; height:56px; border-radius:16px; background:var(--primary); margin:0 auto 18px;
+  display:flex; align-items:center; justify-content:center; color:#fff;
+}
+.gate-title{ font-size:20px; font-weight:700; text-align:center; letter-spacing:-.3px; }
+.gate-sub{ font-size:13px; color:var(--text-dim); text-align:center; margin-top:4px; }
+.gate-role-btn{
+  width:100%; text-align:left; display:flex; align-items:center; gap:14px; padding:16px;
+  border:1.5px solid var(--border); border-radius:12px; background:#fff; margin-top:14px;
+}
+.gate-role-btn:hover{ border-color:var(--primary); background:var(--primary-light); }
+.gate-role-btn .gr-icon{ width:38px; height:38px; border-radius:10px; background:var(--primary-light); color:var(--primary); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.gate-role-btn .gr-title{ font-weight:700; font-size:14px; }
+.gate-role-btn .gr-sub{ font-size:12px; color:var(--text-dim); margin-top:2px; }
+.gate-error{ color:var(--danger); font-size:12.5px; font-weight:600; margin-top:4px; }
+.gate-back{ font-size:12.5px; color:var(--text-dim); font-weight:600; margin-bottom:16px; display:inline-block; }
+
+.admin-side-user{
+  margin-top:auto; padding:16px 20px; border-top:1px solid var(--border);
+}
+.admin-side{ display:flex; flex-direction:column; }
+
+.hidden{display:none !important;}
+
+/* ---------- driver phone frame ---------- */
+.stage{ display:flex; justify-content:center; padding:24px 12px 60px; }
+.phone{
+  width:390px; max-width:100%; background:var(--surface);
+  border-radius:28px; border:1px solid var(--border); overflow:hidden;
+  box-shadow:0 8px 30px rgba(26,35,126,0.12);
+  min-height:760px; display:flex; flex-direction:column;
+}
+.phone-status{
+  background:var(--primary); color:#fff; font-size:12px; font-weight:600;
+  padding:8px 20px; display:flex; justify-content:space-between; letter-spacing:.2px;
+}
+.screen{ flex:1; display:flex; flex-direction:column; padding:24px; gap:16px; overflow-y:auto; }
+.screen-title{ font-size:20px; font-weight:600; letter-spacing:-0.2px; }
+.screen-sub{ font-size:13px; color:var(--text-dim); margin-top:-10px; }
+
+/* ---------- shared components ---------- */
+.card{
+  background:var(--white); border:1px solid var(--border); border-radius:14px; padding:18px;
+}
+.card.gray{ background:var(--gray); }
+.label{ font-size:12px; font-weight:700; color:var(--text-dim); text-transform:none; }
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field select, .field input, .field textarea{
+  padding:12px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:#fff;
+}
+.field textarea{ resize:vertical; min-height:70px; }
+
+.btn{
+  border-radius:8px; padding:14px 18px; font-size:14px; font-weight:600; border:none;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.btn-primary{ background:var(--primary); color:#fff; }
+.btn-primary:disabled{ background:#9099c9; }
+.btn-outline{ background:transparent; color:var(--primary); border:1.5px solid var(--primary); }
+.btn-danger{ background:transparent; color:var(--danger); border:1.5px solid var(--danger); }
+.btn-wait{ background:var(--wait); color:#fff; }
+.btn-block{ width:100%; }
+.btn-sm{ padding:8px 12px; font-size:12px; border-radius:6px; }
+
+.chip{
+  display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:20px;
+  font-size:12px; font-weight:700;
+}
+.chip-conduccion{ background:var(--primary-light); color:var(--primary); }
+.chip-espera{ background:#fff6e0; color:var(--wait); }
+.chip-finalizado{ background:#e6f4ea; color:var(--good); }
+
+.row{ display:flex; justify-content:space-between; align-items:center; }
+.row + .row{ margin-top:10px; }
+.divider{ height:1px; background:var(--border); margin:6px 0; }
+
+.icon{ width:20px; height:20px; stroke:currentColor; stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;}
+
+.bottom-nav{
+  display:flex; border-top:1px solid var(--border); background:#fff;
+}
+.bottom-nav button{
+  flex:1; background:none; border:none; padding:10px 4px 12px; display:flex; flex-direction:column;
+  align-items:center; gap:4px; color:var(--text-dim); font-size:10px; font-weight:600;
+}
+.bottom-nav button.active{ color:var(--primary); }
+
+.empty{ text-align:center; padding:40px 10px; color:var(--text-dim); font-size:13px; }
+
+/* map */
+.map-box{
+  border-radius:14px; overflow:hidden; border:1px solid var(--border); background:#e9edf5; position:relative; height:190px;
+}
+.map-box svg{ width:100%; height:100%; display:block; }
+
+/* trip type toggle */
+.toggle-group{ display:flex; gap:8px; }
+.toggle-group button{
+  flex:1; padding:12px; border-radius:8px; border:1.5px solid var(--border); background:#fff;
+  font-weight:600; font-size:13px; color:var(--text-dim);
+}
+.toggle-group button.selected{ border-color:var(--primary); background:var(--primary-light); color:var(--primary); }
+
+.big-stat{ font-size:30px; font-weight:800; letter-spacing:-0.5px; color:var(--primary); }
+.mini-label{ font-size:11px; font-weight:700; color:var(--text-dim); }
+
+/* ---------- backoffice ---------- */
+.admin-wrap{ display:flex; min-height:calc(100vh - 49px); }
+.admin-side{
+  width:220px; background:var(--white); border-right:1px solid var(--border); padding:20px 0; flex-shrink:0;
+}
+.admin-side .brand{ font-weight:800; font-size:15px; color:var(--primary); padding:0 20px 20px; letter-spacing:-.2px;}
+.admin-side button{
+  width:100%; text-align:left; background:none; border:none; padding:12px 20px; font-size:13px;
+  font-weight:600; color:var(--text-dim); border-left:3px solid transparent; display:flex; align-items:center; gap:10px;
+}
+.admin-side button.active{ color:var(--primary); border-left-color:var(--primary); background:var(--primary-light); }
+.admin-main{ flex:1; padding:32px; max-width:1200px; }
+.admin-header{ margin-bottom:24px; }
+.admin-header h1{ font-size:22px; font-weight:700; letter-spacing:-.3px; }
+.admin-header p{ font-size:13px; color:var(--text-dim); margin-top:4px; }
+
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.grid-3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+@media(max-width:900px){ .grid-2,.grid-3{ grid-template-columns:1fr; } .admin-wrap{flex-direction:column;} .admin-side{width:100%; display:flex; overflow-x:auto; padding:8px;} .admin-side .brand{display:none;} .admin-side button{white-space:nowrap; border-left:none; border-bottom:3px solid transparent;} .admin-side button.active{border-left:none; border-bottom-color:var(--primary);} }
+
+table{ width:100%; border-collapse:collapse; font-size:13px; }
+th{ text-align:left; padding:10px 12px; background:var(--gray); font-weight:700; color:var(--text-dim); font-size:11px; border-bottom:1px solid var(--border); white-space:nowrap;}
+td{ padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+tr:last-child td{ border-bottom:none; }
+.table-wrap{ overflow-x:auto; background:#fff; border:1px solid var(--border); border-radius:14px; }
+
+.form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.form-grid .full{ grid-column:1/-1; }
+
+.status-pill{ font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; }
+.status-active{ background:#e6f4ea; color:var(--good); }
+.status-inactive{ background:#f3f3f3; color:var(--text-dim); }
+
+.toast{
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--primary); color:#fff;
+  padding:12px 20px; border-radius:10px; font-size:13px; font-weight:600; z-index:200; box-shadow:0 6px 20px rgba(0,0,0,.2);
+  opacity:0; transition:opacity .25s;
+}
+.toast.show{ opacity:1; }
+
+@media print{
+  .top-tabs, .admin-side, .no-print{ display:none !important; }
+  .admin-main{ padding:0; }
+  body{ background:#fff; }
+}
+</style>
+</head>
+<body>
+
+<div id="gate" class="gate-wrap"></div>
+
+<div id="headerBar" class="top-tabs no-print hidden">
+  <div class="header-role-label" id="headerRoleLabel"></div>
+  <button class="header-logout" onclick="logout()">Cerrar sesión</button>
+</div>
+
+<div id="driverMode" class="stage hidden">
+  <div class="phone">
+    <div class="phone-status"><span>Transportes Díaz</span><span id="clock">9:41</span></div>
+    <div id="driverScreen" class="screen"></div>
+    <div id="driverNav" class="bottom-nav"></div>
+  </div>
+</div>
+
+<div id="adminMode" class="hidden admin-wrap">
+  <div class="admin-side">
+    <div class="brand">Transportes Díaz<br>Backoffice</div>
+    <button data-s="clientes" onclick="setAdminScreen('clientes')">🏢 Empresas clientes</button>
+    <button data-s="contratos" onclick="setAdminScreen('contratos')">📄 Contratos &amp; CECO</button>
+    <button data-s="conductores" onclick="setAdminScreen('conductores')">🧑‍✈️ Conductores</button>
+    <button data-s="vehiculos" onclick="setAdminScreen('vehiculos')">🚐 Vehículos</button>
+    <button data-s="viajes" onclick="setAdminScreen('viajes')">🗂️ Viajes</button>
+    <button data-s="reportes" onclick="setAdminScreen('reportes')">📊 Reportes</button>
+    <div class="admin-side-user" id="adminSideUser"></div>
+  </div>
+  <div class="admin-main" id="adminMain"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* =========================================================
+   ESTADO Y PERSISTENCIA
+   ========================================================= */
+const STORAGE_KEY = 'td-app-data-v1';
+let db = null;
+let session = { authRole:null, gateStep:'chooseRole', gateError:'', mode:'driver', driverScreen:'dashboard', currentDriverId:null, adminScreen:'clientes', adminUserId:null, editingContractId:null };
+let tripTicker = null;
+
+function uid(p){ return (p||'') + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function formatCLP(n){ return '$' + Math.round(n||0).toLocaleString('es-CL'); }
+function pad(n){ return n.toString().padStart(2,'0'); }
+function fmtHM(totalSeconds){
+  const h = Math.floor(totalSeconds/3600), m = Math.floor((totalSeconds%3600)/60), s = Math.floor(totalSeconds%60);
+  return h>0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+function fmtHMshort(totalSeconds){
+  const h = Math.floor(totalSeconds/3600), m = Math.round((totalSeconds%3600)/60);
+  return `${pad(h)}:${pad(m)}`;
+}
+function fmtDate(iso){ const d=new Date(iso); return d.toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function fmtTime(iso){ const d=new Date(iso); return d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function seedData(){
+  const clients = [
+    {id:'cli1', name:'Minera Andes Norte S.A.', rut:'76.111.222-3'},
+    {id:'cli2', name:'Banco Cordillera', rut:'96.222.333-4'},
+    {id:'cli3', name:'Constructora Litoral Ltda.', rut:'77.333.444-5'},
+  ];
+  const contracts = [
+    { id:'con1', clientId:'cli1', name:'Contrato Traslado Ejecutivos 2026', status:'activo',
+      vigenciaDesde:'2026-01-01', pdfName:'contrato_andes_norte_2026.pdf',
+      cecos:[{id:'ceco1', name:'Gerencia Operaciones'},{id:'ceco2', name:'Gerencia Finanzas'}],
+      tarifas:{
+        urbano:{valorKm:520, valorMinEspera:180, vigenciaDesde:'2026-01-01'},
+        interurbano:{valorKm:410, valorMinEspera:150, vigenciaDesde:'2026-01-01'}
+      }
+    },
+    { id:'con2', clientId:'cli2', name:'Contrato Marco Traslados 2026', status:'activo',
+      vigenciaDesde:'2026-02-15', pdfName:'contrato_banco_cordillera.pdf',
+      cecos:[{id:'ceco3', name:'Directorio'}],
+      tarifas:{
+        urbano:{valorKm:610, valorMinEspera:220, vigenciaDesde:'2026-02-15'},
+        interurbano:{valorKm:480, valorMinEspera:190, vigenciaDesde:'2026-02-15'}
+      }
+    },
+    { id:'con3', clientId:'cli3', name:'Contrato Obras Litoral', status:'activo',
+      vigenciaDesde:'2026-03-01', pdfName:'contrato_litoral.pdf',
+      cecos:[{id:'ceco4', name:'Faena Norte'},{id:'ceco5', name:'Oficina Central'}],
+      tarifas:{
+        urbano:{valorKm:470, valorMinEspera:160, vigenciaDesde:'2026-03-01'},
+        interurbano:{valorKm:390, valorMinEspera:140, vigenciaDesde:'2026-03-01'}
+      }
+    },
+  ];
+  const drivers = [
+    {id:'drv1', name:'Pedro Salinas', rut:'12.345.678-9', email:'pedro.salinas@transportesdiaz.cl', password:''},
+    {id:'drv2', name:'Carla Núñez', rut:'13.456.789-0', email:'carla.nunez@transportesdiaz.cl', password:''},
+    {id:'drv3', name:'José Fuentealba', rut:'14.567.890-1', email:'jose.fuentealba@transportesdiaz.cl', password:''},
+    {id:'drv4', name:'Marcela Ibarra', rut:'15.678.901-2', email:'marcela.ibarra@transportesdiaz.cl', password:''},
+    {id:'drv5', name:'Álvaro Rojas', rut:'16.789.012-3', email:'alvaro.rojas@transportesdiaz.cl', password:''},
+  ];
+  const admins = [
+    {id:'adm1', name:'Francisca Herrera', email:'francisca.herrera@transportesdiaz.cl', password:'', cargo:'Gerencia de Operaciones'},
+    {id:'adm2', name:'Ignacio Bravo', email:'ignacio.bravo@transportesdiaz.cl', password:'', cargo:'Administración'},
+  ];
+  const vehicles = [
+    {id:'veh1', plate:'GKXR-21', model:'Hyundai H1 2023'},
+    {id:'veh2', plate:'HTJP-45', model:'Hyundai H1 2024'},
+    {id:'veh3', plate:'JBLM-88', model:'Mercedes Sprinter 2022'},
+    {id:'veh4', plate:'KDNS-13', model:'Mercedes Sprinter 2023'},
+    {id:'veh5', plate:'LFRV-67', model:'Toyota HiAce 2023'},
+  ];
+  return { clients, contracts, drivers, vehicles, admins, trips: [], activeTrip:null };
+}
+
+async function loadData(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY);
+    db = JSON.parse(res.value);
+    if(!db.admins){ db.admins = seedData().admins; }
+  }catch(e){
+    db = seedData();
+    await saveData();
+  }
+}
+async function saveData(){
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(db));
+  }catch(e){ console.error('Error guardando datos', e); }
+}
+
+/* =========================================================
+   PORTADA DE ACCESO (LOGIN POR ROL)
+   ========================================================= */
+function showShell(mode){
+  document.getElementById('gate').classList.add('hidden');
+  document.getElementById('headerBar').classList.remove('hidden');
+  document.getElementById('driverMode').classList.toggle('hidden', mode!=='driver');
+  document.getElementById('adminMode').classList.toggle('hidden', mode!=='admin');
+  const label = document.getElementById('headerRoleLabel');
+  label.textContent = mode==='driver'
+    ? `📱 App Conductor — ${currentDriver()?.name || ''}`
+    : `🖥️ Backoffice Admin — ${currentAdmin()?.name || ''}`;
+}
+function currentAdmin(){ return db.admins.find(a=>a.id===session.adminUserId); }
+
+function renderGate(){
+  document.getElementById('headerBar').classList.add('hidden');
+  document.getElementById('driverMode').classList.add('hidden');
+  document.getElementById('adminMode').classList.add('hidden');
+  const gate = document.getElementById('gate');
+  gate.classList.remove('hidden');
+
+  if(session.gateStep === 'chooseRole'){
+    gate.innerHTML = `
+      <div class="gate-card">
+        <div class="gate-logo">${icon('car')}</div>
+        <div class="gate-title">Transportes Díaz SpA</div>
+        <div class="gate-sub">Selecciona cómo quieres ingresar</div>
+        <button class="gate-role-btn" onclick="session.gateStep='conductorLogin'; session.gateError=''; renderGate();">
+          <span class="gr-icon">${icon('car')}</span>
+          <span><span class="gr-title">Soy conductor</span><br><span class="gr-sub">Registrar viajes en terreno (app móvil)</span></span>
+        </button>
+        <button class="gate-role-btn" onclick="session.gateStep='adminLogin'; session.gateError=''; renderGate();">
+          <span class="gr-icon">${icon('receipt')}</span>
+          <span><span class="gr-title">Soy gerencia / administración</span><br><span class="gr-sub">Backoffice: contratos, tarifas y reportes</span></span>
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  if(session.gateStep === 'conductorLogin'){
+    const opts = db.drivers.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+    gate.innerHTML = `
+      <div class="gate-card">
+        <span class="gate-back" onclick="session.gateStep='chooseRole'; renderGate();">← Volver</span>
+        <div class="gate-title" style="text-align:left;">Acceso conductor</div>
+        <div class="gate-sub" style="text-align:left; margin-bottom:10px;">Usa tu usuario asignado por la empresa</div>
+        <div class="field"><span class="label">Conductor</span><select id="loginDriver">${opts}</select></div>
+        <div style="height:12px;"></div>
+        <div class="field"><span class="label">Clave</span><input type="password" id="loginDriverPass"></div>
+        ${session.gateError ? `<div class="gate-error">${session.gateError}</div>` : ''}
+        <div style="height:16px;"></div>
+        <button class="btn btn-primary btn-block" onclick="submitDriverLogin()">Iniciar sesión</button>
+      </div>
+    `;
+    return;
+  }
+
+  if(session.gateStep === 'adminLogin'){
+    gate.innerHTML = `
+      <div class="gate-card">
+        <span class="gate-back" onclick="session.gateStep='chooseRole'; renderGate();">← Volver</span>
+        <div class="gate-title" style="text-align:left;">Acceso gerencia / administración</div>
+        <div class="gate-sub" style="text-align:left; margin-bottom:10px;">Backoffice — solo personal autorizado</div>
+        <div class="field"><span class="label">Correo corporativo</span><input id="loginAdminEmail" placeholder="nombre.apellido@transportesdiaz.cl"></div>
+        <div style="height:12px;"></div>
+        <div class="field"><span class="label">Clave</span><input type="password" id="loginAdminPass" placeholder="••••••••"></div>
+        ${session.gateError ? `<div class="gate-error">${session.gateError}</div>` : ''}
+        <div style="height:16px;"></div>
+        <button class="btn btn-primary btn-block" onclick="submitAdminLogin()">Iniciar sesión</button>
+      </div>
+    `;
+    return;
+  }
+}
+
+function submitDriverLogin(){
+  const id = document.getElementById('loginDriver').value;
+  const pass = document.getElementById('loginDriverPass').value;
+  const driver = db.drivers.find(d=>d.id===id);
+  if(!driver || driver.password !== pass){
+    session.gateError = 'Clave incorrecta. Verifica tus datos.';
+    renderGate();
+    return;
+  }
+  session.authRole = 'conductor';
+  session.currentDriverId = id;
+  session.mode = 'driver';
+  session.driverScreen = 'dashboard';
+  session.gateError = '';
+  showShell('driver');
+  renderDriver();
+}
+
+function submitAdminLogin(){
+  const email = document.getElementById('loginAdminEmail').value.trim().toLowerCase();
+  const pass = document.getElementById('loginAdminPass').value;
+  const admin = db.admins.find(a=>a.email.toLowerCase()===email);
+  if(!admin || admin.password !== pass){
+    session.gateError = 'Correo o clave incorrectos.';
+    renderGate();
+    return;
+  }
+  session.authRole = 'admin';
+  session.adminUserId = admin.id;
+  session.mode = 'admin';
+  session.adminScreen = 'clientes';
+  session.gateError = '';
+  showShell('admin');
+  renderAdmin();
+}
+
+function logout(){
+  clearInterval(tripTicker);
+  session.authRole = null;
+  session.currentDriverId = null;
+  session.adminUserId = null;
+  session.gateStep = 'chooseRole';
+  session.gateError = '';
+  renderGate();
+}
+
+function render(){
+  if(!session.authRole){ renderGate(); return; }
+  if(session.mode==='driver'){ renderDriver(); }
+  else{ renderAdmin(); }
+}
+
+/* =========================================================
+   APP CONDUCTOR
+   ========================================================= */
+function icon(name){
+  const icons = {
+    car:`<svg class="icon" viewBox="0 0 24 24"><path d="M5 17h14M5 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm14 0a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM3 17V11l2-5h14l2 5v6"/></svg>`,
+    clock:`<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>`,
+    receipt:`<svg class="icon" viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z"/><path d="M9 8h6M9 12h6"/></svg>`,
+    user:`<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>`,
+    home:`<svg class="icon" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9z"/></svg>`,
+    history:`<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></svg>`,
+    nav:`<svg class="icon" viewBox="0 0 24 24"><path d="M3 11l18-8-8 18-2-8-8-2z"/></svg>`,
+    check:`<svg class="icon" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>`,
+    pause:`<svg class="icon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`,
+  };
+  return icons[name]||'';
+}
+
+function currentDriver(){ return db.drivers.find(d=>d.id===session.currentDriverId); }
+function contractOf(id){ return db.contracts.find(c=>c.id===id); }
+function clientOf(contract){ return db.clients.find(c=>c.id===contract.clientId); }
+
+function goDriverScreen(s){ session.driverScreen = s; renderDriver(); }
+
+function renderDriver(){
+  const nav = document.getElementById('driverNav');
+  const scr = document.getElementById('driverScreen');
+  nav.innerHTML = `
+    <button class="${session.driverScreen==='dashboard'?'active':''}" onclick="goDriverScreen('dashboard')">${icon('home')}Inicio</button>
+    <button class="${session.driverScreen==='tarifas'?'active':''}" onclick="openTarifasConsulta()">${icon('receipt')}Tarifas</button>
+    <button class="${session.driverScreen==='historial'?'active':''}" onclick="goDriverScreen('historial')">${icon('history')}Historial</button>
+    <button class="${session.driverScreen==='perfil'?'active':''}" onclick="goDriverScreen('perfil')">${icon('user')}Perfil</button>
+  `;
+
+  let html = '';
+  switch(session.driverScreen){
+    case 'dashboard': html = screenDashboard(); break;
+    case 'seleccion': html = screenSeleccion(); break;
+    case 'tarifas': html = screenTarifas(); break;
+    case 'tipoViaje': html = screenTipoViaje(); break;
+    case 'activo': html = screenActivo(); break;
+    case 'resumen': html = screenResumen(); break;
+    case 'historial': html = screenHistorial(); break;
+    case 'perfil': html = screenPerfil(); break;
+    default: html = screenDashboard();
+  }
+  scr.innerHTML = html;
+  ensureTicker();
+}
+
+function screenDashboard(){
+  const d = currentDriver();
+  const active = db.activeTrip;
+  return `
+    <div class="screen-title">Hola, ${d.name.split(' ')[0]}</div>
+    <div class="screen-sub">${new Date().toLocaleDateString('es-CL',{weekday:'long', day:'numeric', month:'long'})}</div>
+    ${active ? `
+      <div class="card" style="border-color:var(--primary);">
+        <div class="row">
+          <span class="chip chip-${active.status}">${active.status==='conduccion'?'● En conducción':'● En espera'}</span>
+          <span class="mini-label">${contractOf(active.contractId).name}</span>
+        </div>
+        <div class="divider"></div>
+        <div class="row">
+          <div><div class="mini-label">KM RECORRIDOS</div><div class="big-stat">${active.totalKm.toFixed(1)}</div></div>
+          <div><div class="mini-label">TIEMPO ESPERA</div><div class="big-stat">${fmtHM(active.totalWaitSeconds)}</div></div>
+        </div>
+        <div style="height:14px;"></div>
+        <button class="btn btn-primary btn-block" onclick="goDriverScreen('activo')">Continuar viaje</button>
+      </div>
+    ` : `
+      <div class="card gray" style="text-align:center; padding:28px 18px;">
+        <div style="color:var(--text-dim); font-size:13px; margin-bottom:14px;">No tienes ningún viaje en curso</div>
+        <button class="btn btn-primary btn-block" onclick="startNewTripFlow()">${icon('car')} Iniciar viaje</button>
+      </div>
+    `}
+    <div class="card" onclick="openTarifasConsulta()" style="cursor:pointer;">
+      <div class="row">
+        <div style="display:flex; align-items:center; gap:10px;">${icon('receipt')}<div>
+          <div style="font-weight:600; font-size:14px;">Consultar contrato y tarifas</div>
+          <div class="mini-label" style="font-weight:500;">Valores vigentes por km y espera</div>
+        </div></div>
+        <span style="color:var(--text-dim);">›</span>
+      </div>
+    </div>
+    <div class="card" onclick="goDriverScreen('historial')" style="cursor:pointer;">
+      <div class="row">
+        <div style="display:flex; align-items:center; gap:10px;">${icon('history')}<div>
+          <div style="font-weight:600; font-size:14px;">Mi historial de viajes</div>
+          <div class="mini-label" style="font-weight:500;">${db.trips.filter(t=>t.driverId===d.id).length} viajes registrados</div>
+        </div></div>
+        <span style="color:var(--text-dim);">›</span>
+      </div>
+    </div>
+  `;
+}
+
+function startNewTripFlow(){
+  if(db.activeTrip){ showToast('Ya tienes un viaje en curso'); goDriverScreen('activo'); return; }
+  session.newTrip = { contractId:null, cecoId:null, vehicleId:null };
+  goDriverScreen('seleccion');
+}
+
+function activeContractsForDriver(){
+  return db.contracts.filter(c=>c.status==='activo');
+}
+
+function screenSeleccion(){
+  const contracts = activeContractsForDriver();
+  const nt = session.newTrip;
+  const contractOptions = contracts.map(c=>`<option value="${c.id}" ${nt.contractId===c.id?'selected':''}>${clientOf(c).name} — ${c.name}</option>`).join('');
+  const selectedContract = nt.contractId ? contractOf(nt.contractId) : null;
+  const cecoOptions = selectedContract ? selectedContract.cecos.map(ce=>`<option value="${ce.id}" ${nt.cecoId===ce.id?'selected':''}>${ce.name}</option>`).join('') : '';
+  const vehicleOptions = db.vehicles.map(v=>`<option value="${v.id}" ${nt.vehicleId===v.id?'selected':''}>${v.plate} — ${v.model}</option>`).join('');
+  return `
+    <div class="row"><button class="btn-outline btn btn-sm" onclick="goDriverScreen('dashboard')">← Volver</button></div>
+    <div class="screen-title">Nuevo viaje</div>
+    <div class="screen-sub">Selecciona contrato, centro de costo y vehículo</div>
+    <div class="card">
+      <div class="field">
+        <span class="label">Contrato / Empresa cliente</span>
+        <select id="selContrato" onchange="onContractChange(this.value)">
+          <option value="">Selecciona un contrato…</option>
+          ${contractOptions}
+        </select>
+      </div>
+      <div style="height:12px;"></div>
+      <div class="field">
+        <span class="label">Centro de costo (CECO)</span>
+        <select id="selCeco" ${!selectedContract?'disabled':''} onchange="session.newTrip.cecoId=this.value">
+          <option value="">${selectedContract ? 'Selecciona un CECO…' : 'Primero elige un contrato'}</option>
+          ${cecoOptions}
+        </select>
+      </div>
+      <div style="height:12px;"></div>
+      <div class="field">
+        <span class="label">Vehículo a usar</span>
+        <select id="selVehiculo" onchange="session.newTrip.vehicleId=this.value">
+          <option value="">Selecciona un vehículo…</option>
+          ${vehicleOptions}
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="confirmSeleccion()">Continuar</button>
+  `;
+}
+function onContractChange(val){
+  session.newTrip.contractId = val || null;
+  session.newTrip.cecoId = null;
+  goDriverScreen('seleccion');
+}
+function confirmSeleccion(){
+  const contratoEl = document.getElementById('selContrato');
+  const cecoEl = document.getElementById('selCeco');
+  const vehEl = document.getElementById('selVehiculo');
+  session.newTrip.contractId = contratoEl.value;
+  session.newTrip.cecoId = cecoEl.value;
+  session.newTrip.vehicleId = vehEl.value;
+  if(!session.newTrip.contractId || !session.newTrip.cecoId || !session.newTrip.vehicleId){
+    showToast('Completa contrato, CECO y vehículo'); return;
+  }
+  goDriverScreen('tipoViaje');
+}
+
+function screenTipoViaje(){
+  const nt = session.newTrip;
+  const contract = contractOf(nt.contractId);
+  const tipo = nt.tripType || 'urbano';
+  nt.tripType = tipo;
+  const t = contract.tarifas[tipo];
+  return `
+    <div class="row"><button class="btn-outline btn btn-sm" onclick="goDriverScreen('seleccion')">← Volver</button></div>
+    <div class="screen-title">Tipo de viaje</div>
+    <div class="screen-sub">${contract.name}</div>
+    <div class="toggle-group">
+      <button class="${tipo==='urbano'?'selected':''}" onclick="setTripType('urbano')">Urbano</button>
+      <button class="${tipo==='interurbano'?'selected':''}" onclick="setTripType('interurbano')">Interurbano</button>
+    </div>
+    <div class="card gray">
+      <div class="row"><span class="mini-label">VALOR POR KM</span><span style="font-weight:700;">${formatCLP(t.valorKm)}</span></div>
+      <div class="row"><span class="mini-label">VALOR POR MIN. ESPERA</span><span style="font-weight:700;">${formatCLP(t.valorMinEspera)}</span></div>
+      <div class="row"><span class="mini-label">VIGENTE DESDE</span><span style="font-size:12px;">${fmtDate(t.vigenciaDesde)}</span></div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="beginTrip()">${icon('car')} Iniciar viaje — En conducción</button>
+  `;
+}
+function setTripType(t){ session.newTrip.tripType = t; goDriverScreen('tipoViaje'); }
+
+function beginTrip(){
+  const nt = session.newTrip;
+  const now = new Date().toISOString();
+  db.activeTrip = {
+    id: uid('trip_'),
+    driverId: session.currentDriverId,
+    contractId: nt.contractId,
+    cecoId: nt.cecoId,
+    vehicleId: nt.vehicleId,
+    tripType: nt.tripType,
+    status: 'conduccion',
+    startTime: now,
+    endTime: null,
+    segments: [{ type:'conduccion', start: now, end: null }],
+    totalKm: 0,
+    totalWaitSeconds: 0,
+    routePoints: [[10,90]],
+    notes: ''
+  };
+  saveData();
+  goDriverScreen('activo');
+}
+
+function toggleEspera(){
+  const trip = db.activeTrip;
+  const now = new Date().toISOString();
+  const last = trip.segments[trip.segments.length-1];
+  last.end = now;
+  if(trip.status === 'conduccion'){
+    trip.status = 'espera';
+    trip.segments.push({type:'espera', start:now, end:null});
+  } else {
+    trip.status = 'conduccion';
+    trip.segments.push({type:'conduccion', start:now, end:null});
+  }
+  saveData();
+  goDriverScreen('activo');
+}
+
+function openNavegar(){
+  window.open('https://www.google.com/maps/dir/?api=1&destination=&travelmode=driving', '_blank');
+  showToast('Abriendo navegación externa (Google Maps)…');
+}
+
+function screenActivo(){
+  const trip = db.activeTrip;
+  if(!trip) return screenDashboard();
+  const contract = contractOf(trip.contractId);
+  const ceco = contract.cecos.find(c=>c.id===trip.cecoId);
+  const veh = db.vehicles.find(v=>v.id===trip.vehicleId);
+  const elapsedTotal = (Date.now() - new Date(trip.startTime).getTime())/1000;
+  const points = trip.routePoints.map(p=>p.join(',')).join(' ');
+  return `
+    <div class="row">
+      <span class="chip chip-${trip.status}">${trip.status==='conduccion'?'● En conducción':'● En espera'}</span>
+      <span class="mini-label">${fmtHM(elapsedTotal)}</span>
+    </div>
+    <div class="map-box">
+      <svg viewBox="0 0 220 190" preserveAspectRatio="none">
+        <rect width="220" height="190" fill="#e9edf5"/>
+        <g stroke="#d3d9e8" stroke-width="1">
+          ${[0,1,2,3,4,5].map(i=>`<line x1="0" y1="${i*38}" x2="220" y2="${i*38}"/>`).join('')}
+          ${[0,1,2,3,4,5,6].map(i=>`<line x1="${i*36}" y1="0" x2="${i*36}" y2="190"/>`).join('')}
+        </g>
+        <polyline points="${points}" fill="none" stroke="#1a237e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="${trip.routePoints[trip.routePoints.length-1][0]}" cy="${trip.routePoints[trip.routePoints.length-1][1]}" r="5" fill="#1a237e"/>
+      </svg>
+    </div>
+    <div class="card">
+      <div class="row"><span class="mini-label">CONTRATO</span><span style="font-size:12px; font-weight:600;">${contract.name}</span></div>
+      <div class="row"><span class="mini-label">CECO</span><span style="font-size:12px;">${ceco.name}</span></div>
+      <div class="row"><span class="mini-label">VEHÍCULO</span><span style="font-size:12px;">${veh.plate}</span></div>
+      <div class="row"><span class="mini-label">TIPO DE VIAJE</span><span style="font-size:12px; text-transform:capitalize;">${trip.tripType}</span></div>
+    </div>
+    <div class="grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div class="card gray" style="text-align:center;">
+        <div class="mini-label">KM RECORRIDOS</div>
+        <div class="big-stat">${trip.totalKm.toFixed(2)}</div>
+      </div>
+      <div class="card gray" style="text-align:center;">
+        <div class="mini-label">TIEMPO ESPERA</div>
+        <div class="big-stat" style="color:var(--wait);">${fmtHM(trip.totalWaitSeconds)}</div>
+      </div>
+    </div>
+    <button class="btn btn-outline btn-block" onclick="openNavegar()">${icon('nav')} Navegar (Google Maps / Waze)</button>
+    <div style="display:flex; gap:10px;">
+      ${trip.status==='conduccion'
+        ? `<button class="btn btn-wait btn-block" onclick="toggleEspera()">${icon('pause')} Iniciar espera</button>`
+        : `<button class="btn btn-primary btn-block" onclick="toggleEspera()">${icon('car')} Reanudar viaje</button>`}
+    </div>
+    <button class="btn btn-danger btn-block" onclick="finalizarViaje()">Finalizar viaje</button>
+  `;
+}
+
+function finalizarViaje(){
+  const trip = db.activeTrip;
+  const now = new Date().toISOString();
+  const last = trip.segments[trip.segments.length-1];
+  last.end = now;
+  trip.endTime = now;
+  trip.status = 'finalizado';
+  saveData();
+  goDriverScreen('resumen');
+}
+
+function computeTotals(trip){
+  const contract = contractOf(trip.contractId);
+  const tarifa = contract.tarifas[trip.tripType];
+  const waitMin = Math.ceil(trip.totalWaitSeconds/60);
+  const montoKm = trip.totalKm * tarifa.valorKm;
+  const montoEspera = waitMin * tarifa.valorMinEspera;
+  return { tarifa, waitMin, montoKm, montoEspera, montoTotal: montoKm + montoEspera };
+}
+
+function screenResumen(){
+  const trip = db.activeTrip;
+  if(!trip) return screenDashboard();
+  const contract = contractOf(trip.contractId);
+  const ceco = contract.cecos.find(c=>c.id===trip.cecoId);
+  const veh = db.vehicles.find(v=>v.id===trip.vehicleId);
+  const tot = computeTotals(trip);
+  const drivingSegs = trip.segments.filter(s=>s.type==='conduccion');
+  const waitSegs = trip.segments.filter(s=>s.type==='espera');
+  const drivingSeconds = drivingSegs.reduce((a,s)=> a + (new Date(s.end||trip.endTime) - new Date(s.start))/1000, 0);
+
+  return `
+    <div class="screen-title">Resumen del viaje</div>
+    <div class="screen-sub">Revisa y confirma antes de guardar</div>
+    <div class="card">
+      <div class="row"><span class="mini-label">CONTRATO</span><span style="font-size:12px; font-weight:600; text-align:right;">${contract.name}</span></div>
+      <div class="row"><span class="mini-label">CECO</span><span style="font-size:12px;">${ceco.name}</span></div>
+      <div class="row"><span class="mini-label">VEHÍCULO</span><span style="font-size:12px;">${veh.plate}</span></div>
+      <div class="row"><span class="mini-label">HORA INICIO — TÉRMINO</span><span style="font-size:12px;">${fmtTime(trip.startTime)} – ${fmtTime(trip.endTime)}</span></div>
+    </div>
+    <div class="field">
+      <span class="label">Tipo de viaje aplicado</span>
+      <div class="toggle-group">
+        <button class="${trip.tripType==='urbano'?'selected':''}" onclick="changeTripTypeAtSummary('urbano')">Urbano</button>
+        <button class="${trip.tripType==='interurbano'?'selected':''}" onclick="changeTripTypeAtSummary('interurbano')">Interurbano</button>
+      </div>
+    </div>
+    <div class="grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div class="card gray"><div class="mini-label">KM TOTALES</div><div class="big-stat" style="font-size:22px;">${trip.totalKm.toFixed(2)}</div></div>
+      <div class="card gray"><div class="mini-label">TIEMPO CONDUCCIÓN</div><div class="big-stat" style="font-size:22px;">${fmtHM(drivingSeconds)}</div></div>
+    </div>
+    <div class="card gray">
+      <div class="row"><span class="mini-label">TIEMPO TOTAL DE ESPERA</span><span style="font-weight:700;">${fmtHM(trip.totalWaitSeconds)} (${tot.waitMin} min cobrados)</span></div>
+      <div class="row"><span class="mini-label">TRAMOS DE ESPERA</span><span style="font-size:12px;">${waitSegs.length}</span></div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:8px;">MONTO A COBRAR (CLP)</div>
+      <div class="row"><span style="font-size:13px;">Km recorridos (${trip.totalKm.toFixed(2)} km × ${formatCLP(tot.tarifa.valorKm)})</span><span style="font-weight:600;">${formatCLP(tot.montoKm)}</span></div>
+      <div class="row"><span style="font-size:13px;">Tiempo de espera (${tot.waitMin} min × ${formatCLP(tot.tarifa.valorMinEspera)})</span><span style="font-weight:600;">${formatCLP(tot.montoEspera)}</span></div>
+      <div class="divider"></div>
+      <div class="row"><span style="font-weight:700;">Total viaje</span><span style="font-weight:800; font-size:18px; color:var(--primary);">${formatCLP(tot.montoTotal)}</span></div>
+    </div>
+    <div class="field">
+      <span class="label">Observaciones (opcional)</span>
+      <textarea id="tripNotes" placeholder="Nombre del pasajero, motivo del viaje, notas…">${trip.notes||''}</textarea>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="confirmarViaje()">${icon('check')} Confirmar y guardar viaje</button>
+  `;
+}
+function changeTripTypeAtSummary(t){
+  db.activeTrip.tripType = t;
+  saveData();
+  goDriverScreen('resumen');
+}
+function confirmarViaje(){
+  const trip = db.activeTrip;
+  trip.notes = document.getElementById('tripNotes').value;
+  const tot = computeTotals(trip);
+  trip.tarifaSnapshot = { valorKm: tot.tarifa.valorKm, valorMinEspera: tot.tarifa.valorMinEspera, vigenciaDesde: tot.tarifa.vigenciaDesde };
+  trip.waitMinBilled = tot.waitMin;
+  trip.montoKm = Math.round(tot.montoKm);
+  trip.montoEspera = Math.round(tot.montoEspera);
+  trip.montoTotal = Math.round(tot.montoTotal);
+  db.trips.push(trip);
+  db.activeTrip = null;
+  saveData();
+  showToast('Viaje guardado correctamente');
+  goDriverScreen('dashboard');
+}
+
+function openTarifasConsulta(){
+  session.driverScreen = 'tarifas';
+  session.tarifaContractId = session.tarifaContractId || (db.activeTrip ? db.activeTrip.contractId : activeContractsForDriver()[0]?.id);
+  renderDriver();
+}
+function screenTarifas(){
+  const contracts = activeContractsForDriver();
+  const cid = session.tarifaContractId || contracts[0]?.id;
+  const contract = contractOf(cid);
+  const opts = contracts.map(c=>`<option value="${c.id}" ${c.id===cid?'selected':''}>${clientOf(c).name} — ${c.name}</option>`).join('');
+  return `
+    <div class="screen-title">Contrato y tarifas</div>
+    <div class="screen-sub">Consulta los valores vigentes</div>
+    <div class="field">
+      <select onchange="session.tarifaContractId=this.value; renderDriver();">${opts}</select>
+    </div>
+    <div class="card">
+      <div class="row"><span class="mini-label">EMPRESA CLIENTE</span><span style="font-size:12px; font-weight:600;">${clientOf(contract).name}</span></div>
+      <div class="row"><span class="mini-label">VIGENTE DESDE</span><span style="font-size:12px;">${fmtDate(contract.vigenciaDesde)}</span></div>
+      <div class="row"><span class="mini-label">ESTADO</span><span class="status-pill status-active">Activo</span></div>
+      <div class="divider"></div>
+      <div class="row"><span style="font-size:12px; display:flex; align-items:center; gap:6px;">📎 ${contract.pdfName}</span><button class="btn-outline btn btn-sm" onclick="showToast('Abriendo PDF del contrato (solo consulta)')">Ver PDF</button></div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:10px;">URBANO / DENTRO DE LA CIUDAD</div>
+      <div class="row"><span style="font-size:13px;">Valor por km</span><span style="font-weight:700;">${formatCLP(contract.tarifas.urbano.valorKm)}</span></div>
+      <div class="row"><span style="font-size:13px;">Valor por minuto de espera</span><span style="font-weight:700;">${formatCLP(contract.tarifas.urbano.valorMinEspera)}</span></div>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:10px;">INTERURBANO / FUERA DE LA CIUDAD</div>
+      <div class="row"><span style="font-size:13px;">Valor por km</span><span style="font-weight:700;">${formatCLP(contract.tarifas.interurbano.valorKm)}</span></div>
+      <div class="row"><span style="font-size:13px;">Valor por minuto de espera</span><span style="font-weight:700;">${formatCLP(contract.tarifas.interurbano.valorMinEspera)}</span></div>
+    </div>
+    <div class="card gray">
+      <div style="display:flex; gap:8px; align-items:flex-start;">
+        <span style="font-size:14px;">ℹ️</span>
+        <span style="font-size:12px; color:var(--text-dim);">Centros de costo: ${contract.cecos.map(c=>c.name).join(', ')}</span>
+      </div>
+    </div>
+  `;
+}
+
+function screenHistorial(){
+  const d = currentDriver();
+  const mine = db.trips.filter(t=>t.driverId===d.id).sort((a,b)=> new Date(b.startTime)-new Date(a.startTime));
+  if(mine.length===0){
+    return `<div class="screen-title">Historial</div><div class="empty">${icon('history')}<br><br>Aún no tienes viajes registrados</div>`;
+  }
+  return `
+    <div class="screen-title">Historial de viajes</div>
+    <div class="screen-sub">${mine.length} viajes registrados</div>
+    ${mine.map(t=>{
+      const contract = contractOf(t.contractId);
+      return `
+      <div class="card">
+        <div class="row"><span style="font-weight:600; font-size:13px;">${contract.name}</span><span class="mini-label">${fmtDate(t.startTime)}</span></div>
+        <div class="row"><span class="mini-label">${t.tripType==='urbano'?'Urbano':'Interurbano'} · ${fmtTime(t.startTime)}–${fmtTime(t.endTime)}</span></div>
+        <div class="divider"></div>
+        <div class="row">
+          <span style="font-size:12px;">${t.totalKm.toFixed(1)} km · espera ${fmtHMshort(t.totalWaitSeconds)}</span>
+          <span style="font-weight:700; color:var(--primary);">${formatCLP(t.montoTotal)}</span>
+        </div>
+      </div>`;
+    }).join('')}
+  `;
+}
+
+function screenPerfil(){
+  const d = currentDriver();
+  return `
+    <div class="screen-title">Perfil</div>
+    <div class="card" style="text-align:center; padding:28px 18px;">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-weight:800;font-size:22px;">${d.name.split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
+      <div style="font-weight:700; font-size:16px;">${d.name}</div>
+      <div style="color:var(--text-dim); font-size:13px;">${d.email}</div>
+      <div style="color:var(--text-dim); font-size:13px;">${d.rut}</div>
+    </div>
+    <div class="card">
+      <div class="row"><span class="mini-label">VIAJES TOTALES</span><span style="font-weight:700;">${db.trips.filter(t=>t.driverId===d.id).length}</span></div>
+      <div class="row"><span class="mini-label">EMPRESA</span><span style="font-size:12px;">Transportes Díaz SpA</span></div>
+    </div>
+    <button class="btn btn-outline btn-block" onclick="logout()">Cerrar sesión</button>
+  `;
+}
+
+/* ticker: simula GPS + cronómetro */
+function ensureTicker(){
+  clearInterval(tripTicker);
+  if(session.mode==='driver' && session.driverScreen==='activo' && db.activeTrip){
+    tripTicker = setInterval(()=>{
+      const trip = db.activeTrip;
+      if(!trip) return;
+      if(trip.status==='conduccion'){
+        trip.totalKm += 0.006 + Math.random()*0.02; // simula tracking GPS
+        const last = trip.routePoints[trip.routePoints.length-1];
+        let nx = last[0] + (Math.random()*16-6);
+        let ny = last[1] + (Math.random()*16-8);
+        nx = Math.max(10, Math.min(210, nx));
+        ny = Math.max(10, Math.min(180, ny));
+        trip.routePoints.push([nx, ny]);
+        if(trip.routePoints.length > 60) trip.routePoints.shift();
+      } else if(trip.status==='espera'){
+        trip.totalWaitSeconds += 1;
+      }
+      renderDriver();
+    }, 1000);
+  }
+}
+
+/* =========================================================
+   BACKOFFICE ADMIN
+   ========================================================= */
+function setAdminScreen(s){ session.adminScreen = s; renderAdmin(); }
+
+function renderAdmin(){
+  document.querySelectorAll('.admin-side button[data-s]').forEach(b=>b.classList.toggle('active', b.dataset.s===session.adminScreen));
+  const admin = currentAdmin();
+  const userBox = document.getElementById('adminSideUser');
+  if(userBox && admin){
+    userBox.innerHTML = `
+      <div style="font-size:12px; font-weight:700;">${admin.name}</div>
+      <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">${admin.cargo}</div>
+      <button class="btn btn-outline btn-sm btn-block" onclick="logout()">Cerrar sesión</button>
+    `;
+  }
+  const main = document.getElementById('adminMain');
+  switch(session.adminScreen){
+    case 'clientes': main.innerHTML = adminClientes(); break;
+    case 'contratos': main.innerHTML = adminContratos(); break;
+    case 'conductores': main.innerHTML = adminConductores(); break;
+    case 'vehiculos': main.innerHTML = adminVehiculos(); break;
+    case 'viajes': main.innerHTML = adminViajes(); break;
+    case 'reportes': main.innerHTML = adminReportes(); break;
+  }
+}
+
+function adminClientes(){
+  return `
+    <div class="admin-header"><h1>Empresas clientes</h1><p>Empresas para las que Transportes Díaz presta servicio</p></div>
+    <div class="grid-2" style="margin-bottom:24px;">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Empresa</th><th>RUT</th><th>Contratos</th><th></th></tr></thead>
+          <tbody>
+            ${db.clients.map(c=>`
+              <tr>
+                <td style="font-weight:600;">${c.name}</td>
+                <td>${c.rut}</td>
+                <td>${db.contracts.filter(x=>x.clientId===c.id).length}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="deleteClient('${c.id}')">Eliminar</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="label" style="margin-bottom:12px;">Nueva empresa cliente</div>
+        <div class="field"><span class="label">Nombre</span><input id="newClientName" placeholder="Ej. Minera Sur S.A."></div>
+        <div style="height:10px;"></div>
+        <div class="field"><span class="label">RUT</span><input id="newClientRut" placeholder="76.xxx.xxx-x"></div>
+        <div style="height:14px;"></div>
+        <button class="btn btn-primary btn-block" onclick="addClient()">Agregar empresa</button>
+      </div>
+    </div>
+  `;
+}
+function addClient(){
+  const name = document.getElementById('newClientName').value.trim();
+  const rut = document.getElementById('newClientRut').value.trim();
+  if(!name){ showToast('Ingresa el nombre de la empresa'); return; }
+  db.clients.push({id:uid('cli_'), name, rut});
+  saveData(); showToast('Empresa agregada'); renderAdmin();
+}
+function deleteClient(id){
+  if(db.contracts.some(c=>c.clientId===id)){ showToast('No se puede eliminar: tiene contratos asociados'); return; }
+  db.clients = db.clients.filter(c=>c.id!==id);
+  saveData(); renderAdmin();
+}
+
+function adminContratos(){
+  const editing = session.editingContractId ? contractOf(session.editingContractId) : null;
+  return `
+    <div class="admin-header"><h1>Contratos &amp; Centros de Costo</h1><p>Tarifas por km y minuto de espera, separadas por tipo de viaje</p></div>
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <table>
+        <thead><tr><th>Contrato</th><th>Empresa cliente</th><th>Estado</th><th>CECOs</th><th>Tarifa urbano (km/min)</th><th>Tarifa interurbano (km/min)</th><th>Vigente desde</th><th></th></tr></thead>
+        <tbody>
+          ${db.contracts.map(c=>`
+            <tr>
+              <td style="font-weight:600;">${c.name}</td>
+              <td>${clientOf(c).name}</td>
+              <td><span class="status-pill status-${c.status==='activo'?'active':'inactive'}">${c.status}</span></td>
+              <td>${c.cecos.map(x=>x.name).join(', ')}</td>
+              <td>${formatCLP(c.tarifas.urbano.valorKm)} / ${formatCLP(c.tarifas.urbano.valorMinEspera)}</td>
+              <td>${formatCLP(c.tarifas.interurbano.valorKm)} / ${formatCLP(c.tarifas.interurbano.valorMinEspera)}</td>
+              <td>${fmtDate(c.vigenciaDesde)}</td>
+              <td><button class="btn btn-outline btn-sm" onclick="editContract('${c.id}')">Editar</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:14px;">${editing ? 'Editar contrato: '+editing.name : 'Nuevo contrato'}</div>
+      <div class="form-grid">
+        <div class="field"><span class="label">Empresa cliente</span>
+          <select id="ctName_client">${db.clients.map(cl=>`<option value="${cl.id}" ${editing&&editing.clientId===cl.id?'selected':''}>${cl.name}</option>`).join('')}</select>
+        </div>
+        <div class="field"><span class="label">Nombre del contrato</span><input id="ctName_name" value="${editing?editing.name:''}" placeholder="Ej. Contrato Traslados 2026"></div>
+        <div class="field"><span class="label">Vigente desde</span><input id="ctName_vig" type="date" value="${editing?editing.vigenciaDesde:'2026-01-01'}"></div>
+        <div class="field"><span class="label">Estado</span>
+          <select id="ctName_status">
+            <option value="activo" ${editing&&editing.status==='activo'?'selected':''}>Activo</option>
+            <option value="inactivo" ${editing&&editing.status==='inactivo'?'selected':''}>Inactivo</option>
+          </select>
+        </div>
+        <div class="field full"><span class="label">Centros de costo (separados por coma)</span>
+          <input id="ctName_cecos" value="${editing?editing.cecos.map(c=>c.name).join(', '):''}" placeholder="Ej. Gerencia Operaciones, Gerencia Finanzas">
+        </div>
+        <div class="field full"><span class="label">PDF del contrato (nombre de archivo, referencial)</span>
+          <input id="ctName_pdf" value="${editing?editing.pdfName:''}" placeholder="contrato_cliente_2026.pdf">
+        </div>
+      </div>
+      <div class="divider" style="margin:18px 0;"></div>
+      <div class="grid-2">
+        <div class="card gray">
+          <div class="label" style="margin-bottom:10px;">Tarifa — Urbano</div>
+          <div class="field"><span class="label">Valor por km (CLP)</span><input id="ctT_uKm" type="number" value="${editing?editing.tarifas.urbano.valorKm:''}" placeholder="500"></div>
+          <div style="height:10px;"></div>
+          <div class="field"><span class="label">Valor por minuto de espera (CLP)</span><input id="ctT_uMin" type="number" value="${editing?editing.tarifas.urbano.valorMinEspera:''}" placeholder="180"></div>
+        </div>
+        <div class="card gray">
+          <div class="label" style="margin-bottom:10px;">Tarifa — Interurbano</div>
+          <div class="field"><span class="label">Valor por km (CLP)</span><input id="ctT_iKm" type="number" value="${editing?editing.tarifas.interurbano.valorKm:''}" placeholder="400"></div>
+          <div style="height:10px;"></div>
+          <div class="field"><span class="label">Valor por minuto de espera (CLP)</span><input id="ctT_iMin" type="number" value="${editing?editing.tarifas.interurbano.valorMinEspera:''}" placeholder="150"></div>
+        </div>
+      </div>
+      <div style="height:8px;"></div>
+      <p style="font-size:11.5px; color:var(--text-dim);">💡 La extracción asistida por IA desde el PDF es opcional: sugiere valores, pero el administrador siempre debe revisar y confirmar antes de activarlos.</p>
+      <div style="height:14px; display:flex; gap:10px;">
+        <button class="btn btn-primary btn-block" onclick="saveContract()">${editing?'Guardar cambios':'Crear contrato'}</button>
+        ${editing?`<button class="btn btn-outline" onclick="session.editingContractId=null; renderAdmin();">Cancelar</button>`:''}
+      </div>
+    </div>
+  `;
+}
+function editContract(id){ session.editingContractId = id; renderAdmin(); }
+function saveContract(){
+  const clientId = document.getElementById('ctName_client').value;
+  const name = document.getElementById('ctName_name').value.trim();
+  const vigenciaDesde = document.getElementById('ctName_vig').value;
+  const status = document.getElementById('ctName_status').value;
+  const cecosRaw = document.getElementById('ctName_cecos').value;
+  const pdfName = document.getElementById('ctName_pdf').value.trim() || 'sin_adjuntar.pdf';
+  const uKm = Number(document.getElementById('ctT_uKm').value)||0;
+  const uMin = Number(document.getElementById('ctT_uMin').value)||0;
+  const iKm = Number(document.getElementById('ctT_iKm').value)||0;
+  const iMin = Number(document.getElementById('ctT_iMin').value)||0;
+  if(!name || !cecosRaw.trim()){ showToast('Completa nombre del contrato y al menos un CECO'); return; }
+  const cecos = cecosRaw.split(',').map(s=>s.trim()).filter(Boolean).map(n=>({id: uid('ceco_'), name:n}));
+
+  if(session.editingContractId){
+    const c = contractOf(session.editingContractId);
+    // conserva ids de CECOs existentes si el nombre coincide, para no romper viajes ya registrados
+    c.cecos = cecosRaw.split(',').map(s=>s.trim()).filter(Boolean).map(n=>{
+      const existing = c.cecos.find(x=>x.name===n);
+      return existing || {id: uid('ceco_'), name:n};
+    });
+    c.clientId = clientId; c.name = name; c.vigenciaDesde = vigenciaDesde; c.status = status; c.pdfName = pdfName;
+    c.tarifas = { urbano:{valorKm:uKm, valorMinEspera:uMin, vigenciaDesde}, interurbano:{valorKm:iKm, valorMinEspera:iMin, vigenciaDesde} };
+    showToast('Contrato actualizado');
+  } else {
+    db.contracts.push({ id: uid('con_'), clientId, name, status, vigenciaDesde, pdfName, cecos,
+      tarifas:{ urbano:{valorKm:uKm, valorMinEspera:uMin, vigenciaDesde}, interurbano:{valorKm:iKm, valorMinEspera:iMin, vigenciaDesde} } });
+    showToast('Contrato creado');
+  }
+  session.editingContractId = null;
+  saveData(); renderAdmin();
+}
+
+function adminConductores(){
+  return `
+    <div class="admin-header"><h1>Conductores</h1><p>Sin asignación fija a vehículo: cada conductor elige el vehículo por viaje</p></div>
+    <div class="grid-2">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nombre</th><th>RUT</th><th>Email</th><th>Viajes</th><th></th></tr></thead>
+          <tbody>
+            ${db.drivers.map(d=>`
+              <tr><td style="font-weight:600;">${d.name}</td><td>${d.rut}</td><td>${d.email}</td>
+              <td>${db.trips.filter(t=>t.driverId===d.id).length}</td>
+              <td><button class="btn btn-danger btn-sm" onclick="deleteDriver('${d.id}')">Eliminar</button></td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="label" style="margin-bottom:12px;">Nuevo conductor</div>
+        <div class="field"><span class="label">Nombre completo</span><input id="newDrvName" placeholder="Nombre y apellido"></div>
+        <div style="height:10px;"></div>
+        <div class="field"><span class="label">RUT</span><input id="newDrvRut" placeholder="12.345.678-9"></div>
+        <div style="height:10px;"></div>
+        <div class="field"><span class="label">Email</span><input id="newDrvEmail" placeholder="correo@transportesdiaz.cl"></div>
+        <div style="height:14px;"></div>
+        <button class="btn btn-primary btn-block" onclick="addDriver()">Agregar conductor</button>
+      </div>
+    </div>
+  `;
+}
+function addDriver(){
+  const name = document.getElementById('newDrvName').value.trim();
+  const rut = document.getElementById('newDrvRut').value.trim();
+  const email = document.getElementById('newDrvEmail').value.trim();
+  if(!name){ showToast('Ingresa el nombre del conductor'); return; }
+  db.drivers.push({id:uid('drv_'), name, rut, email});
+  saveData(); showToast('Conductor agregado'); renderAdmin();
+}
+function deleteDriver(id){ db.drivers = db.drivers.filter(d=>d.id!==id); saveData(); renderAdmin(); }
+
+function adminVehiculos(){
+  return `
+    <div class="admin-header"><h1>Vehículos</h1><p>Flota mínima de 5 vehículos, seleccionable libremente en cada viaje</p></div>
+    <div class="grid-2">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Patente</th><th>Modelo</th><th></th></tr></thead>
+          <tbody>
+            ${db.vehicles.map(v=>`
+              <tr><td style="font-weight:600;">${v.plate}</td><td>${v.model}</td>
+              <td><button class="btn btn-danger btn-sm" onclick="deleteVehicle('${v.id}')">Eliminar</button></td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="label" style="margin-bottom:12px;">Nuevo vehículo</div>
+        <div class="field"><span class="label">Patente</span><input id="newVehPlate" placeholder="ABCD-12"></div>
+        <div style="height:10px;"></div>
+        <div class="field"><span class="label">Modelo</span><input id="newVehModel" placeholder="Hyundai H1 2024"></div>
+        <div style="height:14px;"></div>
+        <button class="btn btn-primary btn-block" onclick="addVehicle()">Agregar vehículo</button>
+      </div>
+    </div>
+  `;
+}
+function addVehicle(){
+  const plate = document.getElementById('newVehPlate').value.trim().toUpperCase();
+  const model = document.getElementById('newVehModel').value.trim();
+  if(!plate){ showToast('Ingresa la patente'); return; }
+  db.vehicles.push({id:uid('veh_'), plate, model});
+  saveData(); showToast('Vehículo agregado'); renderAdmin();
+}
+function deleteVehicle(id){ db.vehicles = db.vehicles.filter(v=>v.id!==id); saveData(); renderAdmin(); }
+
+function filterOptionsHTML(){
+  return {
+    clients: db.clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''),
+    contracts: db.contracts.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''),
+    drivers: db.drivers.map(d=>`<option value="${d.id}">${d.name}</option>`).join(''),
+  };
+}
+
+function getFilteredTrips(){
+  const clientId = document.getElementById('fClient')?.value || '';
+  const contractId = document.getElementById('fContract')?.value || '';
+  const driverId = document.getElementById('fDriver')?.value || '';
+  const from = document.getElementById('fFrom')?.value || '';
+  const to = document.getElementById('fTo')?.value || '';
+  return db.trips.filter(t=>{
+    const c = contractOf(t.contractId);
+    if(clientId && c.clientId!==clientId) return false;
+    if(contractId && t.contractId!==contractId) return false;
+    if(driverId && t.driverId!==driverId) return false;
+    if(from && new Date(t.startTime) < new Date(from)) return false;
+    if(to && new Date(t.startTime) > new Date(to+'T23:59:59')) return false;
+    return true;
+  }).sort((a,b)=> new Date(b.startTime)-new Date(a.startTime));
+}
+
+function adminViajes(){
+  const opts = filterOptionsHTML();
+  return `
+    <div class="admin-header"><h1>Viajes</h1><p>Listado completo con filtros por empresa, contrato, conductor y fecha</p></div>
+    <div class="card no-print" style="margin-bottom:18px;">
+      <div class="form-grid">
+        <div class="field"><span class="label">Empresa</span><select id="fClient" onchange="renderAdmin()"><option value="">Todas</option>${opts.clients}</select></div>
+        <div class="field"><span class="label">Contrato</span><select id="fContract" onchange="renderAdmin()"><option value="">Todos</option>${opts.contracts}</select></div>
+        <div class="field"><span class="label">Conductor</span><select id="fDriver" onchange="renderAdmin()"><option value="">Todos</option>${opts.drivers}</select></div>
+        <div class="field"><span class="label">Desde</span><input type="date" id="fFrom" onchange="renderAdmin()"></div>
+        <div class="field"><span class="label">Hasta</span><input type="date" id="fTo" onchange="renderAdmin()"></div>
+      </div>
+    </div>
+    ${renderTripsTable(getFilteredTrips())}
+  `;
+}
+function renderTripsTable(trips){
+  if(trips.length===0) return `<div class="empty">No hay viajes que coincidan con el filtro seleccionado.</div>`;
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Fecha</th><th>Conductor</th><th>Contrato</th><th>CECO</th><th>Tipo</th><th>Inicio</th><th>Término</th>
+          <th>Km</th><th>Espera (hh:mm)</th><th>$/km</th><th>$/min</th><th>Monto km</th><th>Monto espera</th><th>Monto total</th>
+        </tr></thead>
+        <tbody>
+          ${trips.map(t=>{
+            const c = contractOf(t.contractId);
+            const ceco = c.cecos.find(x=>x.id===t.cecoId);
+            const d = db.drivers.find(x=>x.id===t.driverId);
+            return `<tr>
+              <td>${fmtDate(t.startTime)}</td><td>${d?d.name:'—'}</td><td>${c.name}</td><td>${ceco?ceco.name:'—'}</td>
+              <td style="text-transform:capitalize;">${t.tripType}</td><td>${fmtTime(t.startTime)}</td><td>${fmtTime(t.endTime)}</td>
+              <td>${t.totalKm.toFixed(2)}</td><td>${fmtHMshort(t.totalWaitSeconds)}</td>
+              <td>${formatCLP(t.tarifaSnapshot.valorKm)}</td><td>${formatCLP(t.tarifaSnapshot.valorMinEspera)}</td>
+              <td>${formatCLP(t.montoKm)}</td><td>${formatCLP(t.montoEspera)}</td><td style="font-weight:700;">${formatCLP(t.montoTotal)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function adminReportes(){
+  const opts = filterOptionsHTML();
+  return `
+    <div class="admin-header"><h1>Reportes</h1><p>Diario, semanal (auto. cada viernes) y mensual — exportables a Excel/CSV y PDF</p></div>
+    <div class="card no-print" style="margin-bottom:18px;">
+      <div class="form-grid">
+        <div class="field"><span class="label">Empresa</span><select id="fClient" onchange="renderAdmin()"><option value="">Todas</option>${opts.clients}</select></div>
+        <div class="field"><span class="label">Contrato</span><select id="fContract" onchange="renderAdmin()"><option value="">Todos</option>${opts.contracts}</select></div>
+        <div class="field"><span class="label">Conductor</span><select id="fDriver" onchange="renderAdmin()"><option value="">Todos</option>${opts.drivers}</select></div>
+        <div class="field"><span class="label">Desde</span><input type="date" id="fFrom" onchange="renderAdmin()"></div>
+        <div class="field"><span class="label">Hasta</span><input type="date" id="fTo" onchange="renderAdmin()"></div>
+      </div>
+      <div style="height:14px;"></div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="downloadCSV()">⬇ Exportar Excel (.xlsx)</button>
+        <button class="btn btn-outline" onclick="window.print()">🖨 Exportar / Imprimir PDF</button>
+        <button class="btn btn-outline" onclick="quickRange('day')">Reporte de hoy</button>
+        <button class="btn btn-outline" onclick="quickRange('week')">Reporte semanal (últ. viernes)</button>
+        <button class="btn btn-outline" onclick="quickRange('month')">Reporte mensual</button>
+      </div>
+      <p style="font-size:11.5px; color:var(--text-dim); margin-top:12px;">
+        ℹ️ En producción, los reportes semanal (todos los viernes) y mensual se generan automáticamente mediante tarea programada (cron) en el backend, además de poder descargarse manualmente aquí.
+      </p>
+    </div>
+    <div id="reportSummary"></div>
+    ${renderTripsTable(getFilteredTrips())}
+  `;
+}
+function quickRange(type){
+  const today = new Date();
+  let from, to;
+  if(type==='day'){ from = to = today; }
+  else if(type==='week'){
+    const friday = new Date(today);
+    const diff = (friday.getDay() + 7 - 5) % 7;
+    friday.setDate(friday.getDate() - diff);
+    from = new Date(friday); from.setDate(from.getDate()-6);
+    to = friday;
+  } else {
+    from = new Date(today.getFullYear(), today.getMonth(), 1);
+    to = new Date(today.getFullYear(), today.getMonth()+1, 0);
+  }
+  const toISO = d => d.toISOString().slice(0,10);
+  session.pendingRange = { from: toISO(from), to: toISO(to) };
+  renderAdmin();
+  setTimeout(()=>{
+    if(document.getElementById('fFrom')){ document.getElementById('fFrom').value = session.pendingRange.from; document.getElementById('fTo').value = session.pendingRange.to; renderAdmin(); }
+  }, 0);
+}
+async function downloadCSV(){
+  const trips = getFilteredTrips();
+  if(trips.length===0){ showToast('No hay viajes para exportar con este filtro'); return; }
+  const headers = ['Fecha','Conductor','Contrato','Centro de Costo','Tipo de viaje','Hora inicio','Hora término','Km recorridos','Tiempo espera (hh:mm)','Valor por km (CLP)','Valor por min espera (CLP)','Monto km (CLP)','Monto espera (CLP)','Monto total (CLP)'];
+  const rows = trips.map(t=>{
+    const c = contractOf(t.contractId);
+    const ceco = c.cecos.find(x=>x.id===t.cecoId);
+    const d = db.drivers.find(x=>x.id===t.driverId);
+    return [
+      fmtDate(t.startTime), d?d.name:'', c.name, ceco?ceco.name:'', t.tripType==='urbano'?'Urbano':'Interurbano',
+      fmtTime(t.startTime), fmtTime(t.endTime),
+      Number(t.totalKm.toFixed(2)), fmtHMshort(t.totalWaitSeconds),
+      t.tarifaSnapshot.valorKm, t.tarifaSnapshot.valorMinEspera,
+      t.montoKm, t.montoEspera, t.montoTotal
+    ];
+  });
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Reporte de viajes');
+  const widths = [11,20,26,20,12,10,10,10,14,13,13,13,14,13];
+  const moneyCols = [10,11,12,13,14]; // columnas 1-indexed con montos/valores CLP
+  ws.columns = headers.map((h,i)=>({ width: widths[i] }));
+
+  const headerRow = ws.addRow(headers);
+  headerRow.height = 26;
+  headerRow.eachCell(cell=>{
+    cell.font = { bold:true, name:'Arial', size:10 };
+    cell.alignment = { vertical:'middle', horizontal:'center', wrapText:true };
+    cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFE8EAF6' } };
+    cell.border = { top:{style:'thin',color:{argb:'FF000000'}}, bottom:{style:'thin',color:{argb:'FF000000'}}, left:{style:'thin',color:{argb:'FF000000'}}, right:{style:'thin',color:{argb:'FF000000'}} };
+  });
+
+  rows.forEach(r=>{
+    const row = ws.addRow(r);
+    row.eachCell((cell, colNumber)=>{
+      cell.font = { name:'Arial', size:10 };
+      cell.alignment = { vertical:'middle', horizontal:'left' };
+      cell.border = { top:{style:'thin',color:{argb:'FF000000'}}, bottom:{style:'thin',color:{argb:'FF000000'}}, left:{style:'thin',color:{argb:'FF000000'}}, right:{style:'thin',color:{argb:'FF000000'}} };
+      if(moneyCols.includes(colNumber)){ cell.numFmt = '$#,##0'; }
+    });
+  });
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `reporte_transportes_diaz_${new Date().toISOString().slice(0,10)}.xlsx`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Reporte Excel (.xlsx) descargado');
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+function tickClock(){
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('es-CL',{hour:'2-digit', minute:'2-digit'});
+}
+async function init(){
+  await loadData();
+  tickClock();
+  setInterval(tickClock, 30000);
+  render();
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transportes Díaz SpA — Sistema de Registro de Viajes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="gate" class="gate-wrap"></div>
+
+<div id="headerBar" class="top-tabs no-print hidden">
+  <div class="header-role-label" id="headerRoleLabel"></div>
+  <button class="header-logout" data-logout>Salir</button>
+</div>
+
+<div id="driverMode" class="stage hidden">
+  <div class="phone">
+    <div class="phone-status"><span>Transportes Díaz</span><span id="clock">9:41</span></div>
+    <div id="driverScreen" class="screen"></div>
+    <div id="driverNav" class="bottom-nav"></div>
+  </div>
+</div>
+
+<div id="adminMode" class="hidden admin-wrap">
+  <div class="admin-side">
+    <div class="brand">Transportes Díaz<br>Backoffice</div>
+    <button data-s="clientes">Empresas clientes</button>
+    <button data-s="contratos">Contratos &amp; CECO</button>
+    <button data-s="conductores">Conductores</button>
+    <button data-s="vehiculos">Vehículos</button>
+    <button data-s="viajes">Viajes</button>
+    <button data-s="reportes">Reportes</button>
+    <div class="admin-side-user" id="adminSideUser"></div>
+  </div>
+  <div class="admin-main" id="adminMain"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

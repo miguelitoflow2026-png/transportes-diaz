@@ -65,6 +65,11 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: { cacheName: 'google-fonts-webfonts', expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 } },
           },
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/trip_positions.*/i,
+            handler: 'NetworkOnly',
+            options: { backgroundSync: { name: 'trip-positions-queue', options: { maxRetentionTime: 24 * 60 } } },
+          },
         ],
       },
     }),

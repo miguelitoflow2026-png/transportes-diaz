@@ -3,6 +3,7 @@
 
 import { supabase } from './supabase.js';
 import { state } from './state.js';
+import { enqueue, dequeueAll } from './services/offlineQueue.js';
 
 const STORAGE_KEY = 'td-trip-tracking';
 const SYNC_INTERVAL_MS = 30000; // cada 30s sincroniza a Supabase
@@ -116,12 +117,22 @@ export async function syncToSupabase(tripId, data) {
     console.warn('Sync trips falló:', e.message);
   }
 
-  // 2) Insertar solo puntos nuevos (no duplicar) — si offline, se reintenta en próximo sync
+  // 2) Insertar solo puntos nuevos (no duplicar) — con cola IndexedDB si offline
+  // Primero reintentar cola pendiente
+  try {
+    const queued = await dequeueAll();
+    if (queued.length > 0) {
+      const { error: qErr } = await supabase.from('trip_positions').insert(queued);
+      if (qErr) { await enqueue(queued); throw qErr; }
+      console.log(`[OfflineQueue] ${queued.length} puntos reenviados`);
+    }
+  } catch (e) {
+    if (!navigator.onLine) console.log('[OfflineQueue] aún offline, se reintentará');
+  }
   if (data.routePoints && data.routePoints.length > 0) {
     const from = data.syncedCount ?? 0;
     const toSync = data.routePoints.slice(from);
     if (toSync.length === 0) return;
-    // Batch de máx 20 por sync para no saturar
     const batch = toSync.slice(0, 20);
     const rows = batch.map(p => ({
       trip_id: tripId,
@@ -137,12 +148,12 @@ export async function syncToSupabase(tripId, data) {
     try {
       const { error } = await supabase.from('trip_positions').insert(rows);
       if (error) throw error;
-      // Avanzar cursor solo si éxito
       const newSynced = from + batch.length;
       saveTrackingState(tripId, { ...data, syncedCount: newSynced });
     } catch (e) {
-      if (!navigator.onLine) console.warn('Sync positions offline, reintentará:', e.message);
-      else console.warn('Sync positions falló:', e.message);
+      await enqueue(rows);
+      if (!navigator.onLine) console.warn('Sync positions offline, encolado:', e.message);
+      else console.warn('Sync positions falló, encolado:', e.message);
     }
   }
 }

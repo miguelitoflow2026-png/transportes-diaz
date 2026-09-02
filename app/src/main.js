@@ -9,7 +9,7 @@ import * as admin from './admin.js';
 
 export async function applyView() {
   const role = state.user?.app_metadata?.role || '';
-  state.parent_role = role;
+  state.role = role;
 
   if (role === 'conductor') {
     state.mode = 'driver';
@@ -48,16 +48,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     gate.render();
   }
 
-  supabase.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_IN' && session?.user) {
-      state.user = session.user;
-      state.role = session.user.app_metadata?.role || '';
-      applyView();
-    } else if (event === 'SIGNED_OUT') {
-      reset();
-      gate.render();
-    } else if (event === 'TOKEN_REFRESHED') {
-      state.user = session?.user || null;
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    try {
+      if (event === 'SIGNED_IN' && session?.user) {
+        state.user = session.user;
+        state.role = session.user.app_metadata?.role || '';
+        await applyView();
+      } else if (event === 'SIGNED_OUT') {
+        reset();
+        gate.render();
+      } else if (event === 'TOKEN_REFRESHED') {
+        state.user = session?.user || null;
+        if (session?.user) state.role = session.user.app_metadata?.role || '';
+      }
+    } catch (e) {
+      console.error('Auth state change error:', e);
+      gate.renderWithError(e.message);
     }
   });
 });

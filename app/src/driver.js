@@ -7,9 +7,7 @@ import { loadDriverContext, fetchActiveTrip, createTrip, updateTrip, finalizeTri
 import { startTracking, stopTracking, pauseTracking, resumeTracking, getLastPosition, clearTrackingState, setWaitSeconds, haversineMeters, loadTrackingState } from './tracing.js';
 import { initLeafletMap, updateMapRoute, updateMapPosition, destroyMap } from './services/map.js';
 import { searchNominatim } from './services/geocoding.js';
-
-let ticker = null;
-let tickCount = 0;
+import { ensureTicker, stopTicker, stopDriverTicker, updateWaitDisplay, updateKmDisplay } from './services/ticker.js';
 
 
 // Estado de tracking GPS
@@ -505,24 +503,6 @@ function loadPersistedTracking() {
   }
 }
 
-function updateKmDisplay(totalKm) {
-  const el = document.getElementById('km-display');
-  if (el) el.textContent = Number(totalKm || 0).toFixed(2);
-}
-
-function updateWaitDisplay(totalWaitSeconds) {
-  const el = document.getElementById('wait-display');
-  if (el) {
-    // fmtHM no está disponible aquí, usamos implementación local
-    const h = Math.floor(totalWaitSeconds / 3600);
-    const m = Math.floor((totalWaitSeconds % 3600) / 60);
-    const s = totalWaitSeconds % 60;
-    el.textContent = h > 0
-      ? `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-      : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  }
-}
-
 function screenActivo() {
   const trip = state.activeTrip;
   if (!trip) return screenDashboard();
@@ -760,33 +740,5 @@ window.driverLogout = async () => {
   await supabase.auth.signOut().catch(() => {});
 };
 
-export function stopDriverTicker() {
-  stopTicker();
-}
-
-// ---------------------------------------------------------------------------
-// Ticker: actualiza contadores de espera/pausa. Los km los maneja GPS tracking.
-function ensureTicker() {
-  stopTicker();
-  if (state.mode === 'driver' && state.driverScreen === 'activo' && state.activeTrip && state.activeTrip.status !== 'finalizado') {
-    ticker = setInterval(async () => {
-      const trip = state.activeTrip;
-      if (!trip) return;
-      tickCount++;
-      if (trip.status === 'espera') {
-        trip.total_wait_seconds = (trip.total_wait_seconds ?? 0) + 1;
-        try { setWaitSeconds(trip.id, trip.total_wait_seconds); } catch (e) {}
-        updateWaitDisplay(trip.total_wait_seconds);
-      }
-      if (tickCount % 3 === 0 && trip.status === 'espera') {
-        updateTrip(trip.id, { total_wait_seconds: trip.total_wait_seconds }).catch(() => {});
-      }
-    }, 1000);
-  }
-}
-
-function stopTicker() {
-  if (ticker) clearInterval(ticker);
-  ticker = null;
-  tickCount = 0;
-}
+// ticker y displays ahora en services/ticker.js — re-export para main.js
+export { stopDriverTicker } from './services/ticker.js';

@@ -550,12 +550,22 @@ function initLeafletMap() {
     }
   }
 
-  // Inicializar mapa centrado en Santiago por defecto
+  // Centro inicial: punto_inicio del viaje si existe, si no Santiago
+  const tripForCenter = state.activeTrip;
+  let initialCenter = [-33.4489, -70.6693];
+  let initialZoom = 15;
+  if (tripForCenter?.punto_inicio && Number.isFinite(tripForCenter.punto_inicio.lat) && Number.isFinite(tripForCenter.punto_inicio.lon)) {
+    initialCenter = [tripForCenter.punto_inicio.lat, tripForCenter.punto_inicio.lon];
+    initialZoom = 14;
+  } else if (tripForCenter?.punto_fin && Number.isFinite(tripForCenter.punto_fin.lat) && Number.isFinite(tripForCenter.punto_fin.lon)) {
+    initialCenter = [tripForCenter.punto_fin.lat, tripForCenter.punto_fin.lon];
+    initialZoom = 14;
+  }
   leafletMap = L.map('leaflet-map', {
     zoomControl: true,
     attributionControl: true,
     preferCanvas: true,
-  }).setView([-33.4489, -70.6693], 15);
+  }).setView(initialCenter, initialZoom);
 
   // Tiles OpenStreetMap
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -563,24 +573,41 @@ function initLeafletMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(leafletMap);
 
-  // Polilínea de la ruta
+  // Ruta sugerida (línea punteada entre origen y destino) — solo visual, no afecta km
+  const tp = state.activeTrip;
+  if (tp?.punto_inicio && tp?.punto_fin && Number.isFinite(tp.punto_inicio.lat) && Number.isFinite(tp.punto_fin.lat)) {
+    L.polyline([[tp.punto_inicio.lat, tp.punto_inicio.lon], [tp.punto_fin.lat, tp.punto_fin.lon]], {
+      color: '#9ca3af', weight: 3, opacity: 0.6, dashArray: '8, 8', lineCap: 'round',
+    }).addTo(leafletMap);
+    L.circleMarker([tp.punto_inicio.lat, tp.punto_inicio.lon], { radius: 7, fillColor: '#1b7a43', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(leafletMap).bindTooltip('Origen', { permanent: false });
+    L.marker([tp.punto_fin.lat, tp.punto_fin.lon], { icon: L.divIcon({ html: '<div style="background:#b3261e;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>', iconSize: [14,14], iconAnchor: [7,7] }) }).addTo(leafletMap).bindTooltip('Destino', { permanent: false });
+  } else if (tp?.punto_inicio) {
+    L.circleMarker([tp.punto_inicio.lat, tp.punto_inicio.lon], { radius: 7, fillColor: '#1b7a43', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(leafletMap).bindTooltip('Origen', { permanent: false });
+  }
+
+  // Polilínea de la ruta recorrida
   routePolyline = L.polyline([], {
     color: '#1a237e',
     weight: 4,
-    opacity: 0.8,
+    opacity: 0.9,
     lineCap: 'round',
     lineJoin: 'round',
   }).addTo(leafletMap);
 
-  // Marcador de posición actual
+  // Marcador de posición actual — azul pulsante, siempre visible
   positionMarker = L.circleMarker([0, 0], {
-    radius: 8,
-    fillColor: '#1a237e',
+    radius: 10,
+    fillColor: '#2563eb',
     color: '#fff',
-    weight: 2,
+    weight: 3,
     opacity: 1,
     fillOpacity: 1,
   }).addTo(leafletMap);
+  // Pulso exterior (efecto radar)
+  const pulse = L.circleMarker([0, 0], { radius: 18, fillColor: '#2563eb', color: '#2563eb', weight: 1, opacity: 0.25, fillOpacity: 0.15 }).addTo(leafletMap);
+  // Sincronizar pulso con posición
+  const origSetLatLng = positionMarker.setLatLng.bind(positionMarker);
+  positionMarker.setLatLng = (latlng) => { origSetLatLng(latlng); pulse.setLatLng(latlng); return positionMarker; };
 
   // Forzar resize después de un tick (por si el contenedor estaba oculto) — triple para cubrir animaciones
   setTimeout(() => leafletMap.invalidateSize(), 80);

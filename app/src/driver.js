@@ -573,17 +573,49 @@ function initLeafletMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(leafletMap);
 
-  // Ruta sugerida (línea punteada entre origen y destino) — solo visual, no afecta km
+  // Ruta sugerida por calles (OSRM) + marcadores origen/destino
   const tp = state.activeTrip;
-  if (tp?.punto_inicio && tp?.punto_fin && Number.isFinite(tp.punto_inicio.lat) && Number.isFinite(tp.punto_fin.lat)) {
-    L.polyline([[tp.punto_inicio.lat, tp.punto_inicio.lon], [tp.punto_fin.lat, tp.punto_fin.lon]], {
-      color: '#9ca3af', weight: 3, opacity: 0.6, dashArray: '8, 8', lineCap: 'round',
-    }).addTo(leafletMap);
+  let osrmLine = null;
+  const addOsrmRoute = async () => {
+    if (!tp?.punto_inicio || !tp?.punto_fin || !Number.isFinite(tp.punto_inicio.lat) || !Number.isFinite(tp.punto_fin.lat)) {
+      if (tp?.punto_inicio) L.circleMarker([tp.punto_inicio.lat, tp.punto_inicio.lon], { radius: 7, fillColor: '#1b7a43', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(leafletMap).bindTooltip('Origen', { permanent: false });
+      return;
+    }
+    // Marcadores
     L.circleMarker([tp.punto_inicio.lat, tp.punto_inicio.lon], { radius: 7, fillColor: '#1b7a43', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(leafletMap).bindTooltip('Origen', { permanent: false });
     L.marker([tp.punto_fin.lat, tp.punto_fin.lon], { icon: L.divIcon({ html: '<div style="background:#b3261e;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>', iconSize: [14,14], iconAnchor: [7,7] }) }).addTo(leafletMap).bindTooltip('Destino', { permanent: false });
-  } else if (tp?.punto_inicio) {
-    L.circleMarker([tp.punto_inicio.lat, tp.punto_inicio.lon], { radius: 7, fillColor: '#1b7a43', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(leafletMap).bindTooltip('Origen', { permanent: false });
-  }
+    // OSRM - ruta real por calles
+    const url = `https://router.project-osrm.org/route/v1/driving/${tp.punto_inicio.lon},${tp.punto_inicio.lat};${tp.punto_fin.lon},${tp.punto_fin.lat}?overview=full&geometries=geojson&steps=true`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('OSRM ' + res.status);
+      const data = await res.json();
+      if (data.code !== 'Ok' || !data.routes?.[0]) throw new Error(data.code);
+      const route = data.routes[0];
+      const coords = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+      osrmLine = L.polyline(coords, { color: '#2563eb', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }).addTo(leafletMap);
+      // Ajustar vista para mostrar toda la ruta si aún no hay seguimiento
+      if (routePolyline.getLatLngs().length === 0) {
+        leafletMap.fitBounds(osrmLine.getBounds(), { padding: [30, 30], maxZoom: 15 });
+      }
+      // Guardar instrucciones para panel (opcional)
+      window._osrmSteps = route.legs[0]?.steps || [];
+      window._osrmSummary = { distance: route.distance, duration: route.duration };
+      console.log('[OSRM] ruta', { km: (route.distance/1000).toFixed(1), min: Math.round(route.duration/60), steps: window._osrmSteps.length });
+      // Mostrar resumen breve sobre el mapa
+      const summaryEl = document.getElementById('route-summary');
+      if (summaryEl) {
+        summaryEl.textContent = `${(route.distance/1000).toFixed(1)} km · ${Math.round(route.duration/60)} min · ${window._osrmSteps.length} giros`;
+        summaryEl.classList.remove('hidden');
+      }
+    } catch (e) {
+      console.warn('[OSRM] fallback a línea recta:', e.message);
+      L.polyline([[tp.punto_inicio.lat, tp.punto_inicio.lon], [tp.punto_fin.lat, tp.punto_fin.lon]], {
+        color: '#9ca3af', weight: 3, opacity: 0.6, dashArray: '8, 8', lineCap: 'round',
+      }).addTo(leafletMap);
+    }
+  };
+  addOsrmRoute();
 
   // Polilínea de la ruta recorrida
   routePolyline = L.polyline([], {
@@ -725,6 +757,7 @@ function screenActivo() {
     <div class="map-box">
       <div id="leaflet-map" style="width:100%; height:100%;"></div>
       <div id="arrival-banner" class="hidden" style="position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;background:#e6f4ea;color:var(--good);border:1px solid #a3d9b1;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.15);">✓ Has llegado al destino</div>
+      <div id="route-summary" class="hidden" style="position:absolute;top:10px;right:10px;z-index:1000;background:rgba(255,255,255,0.96);border:1px solid var(--border);padding:6px 10px;border-radius:8px;font-size:11px;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,0.12); max-width:55%; text-align:right;"></div>
       <button id="btn-recenter" class="btn btn-sm" style="position:absolute; bottom:34px; right:12px; z-index:1000; padding:8px 14px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.22); background:#fff; border:1px solid var(--border);" onclick="recenterMap()" title="Centrar en mi posición">
         ${icon('nav')} Centrar
       </button>

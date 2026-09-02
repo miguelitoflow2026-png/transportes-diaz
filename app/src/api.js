@@ -22,6 +22,32 @@ export async function loadDriverContext() {
   return data;
 }
 
+export async function recordTripPosition(tripId, lat, lon, accuracy = null, altitude = null, speed = null, heading = null) {
+  const data = unwrap(await supabase.rpc('record_trip_position', {
+    p_trip_id: tripId,
+    p_lat: lat,
+    p_lon: lon,
+    p_accuracy: accuracy,
+    p_altitude: altitude,
+    p_speed: speed,
+    p_heading: heading,
+  }));
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+export async function getTripRoute(tripId) {
+  const data = unwrap(await supabase.rpc('get_trip_route', { p_trip_id: tripId }));
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+export async function getTripLastPosition(tripId) {
+  const data = unwrap(await supabase.rpc('get_trip_last_position', { p_trip_id: tripId }));
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
 export async function fetchActiveTrip() {
   const { data, error } = await supabase
     .from('trips')

@@ -4,10 +4,17 @@ import { supabase } from './supabase.js';
 import { state } from './state.js';
 import { esc, icon, showToast, showShell, fmtHM, fmtHMshort, fmtDate, fmtTime, formatCLP } from './lib.js';
 import { loadDriverContext, fetchActiveTrip, createTrip, updateTrip, finalizeTrip, previewAmounts, getMyTrips, getContractPdfUrl, audit } from './api.js';
+import { startTracking, stopTracking, pauseTracking, resumeTracking, getLastPosition, clearTrackingState } from './tracing.js';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 let ticker = null;
 let tickCount = 0;
+// tripVisual ya no se usa para GPS real; se mantiene para compatibilidad temporal si acaso
 const tripVisual = { routePoints: [[10, 90]] };
+
+// Estado de tracking GPS
+let currentWatchState = null; // 'conduccion' | 'espera' | null
 
 export async function enter() {
   try {
@@ -16,7 +23,13 @@ export async function enter() {
     state.driverStats = { count: trips.length };
     await fetchActiveTrip();
     if (state.activeTrip) {
-      tripVisual.routePoints = [[10, 90]];
+      // Iniciar tracking GPS si hay viaje activo en conducción
+      if (state.activeTrip.status === 'conduccion') {
+        await startGpsTracking();
+      } else if (state.activeTrip.status === 'espera') {
+        // En espera: solo cargar estado persistido, no iniciar watchPosition
+        loadPersistedTracking();
+      }
     }
     state.driverScreen = 'dashboard';
     render();
@@ -24,6 +37,12 @@ export async function enter() {
     showToast(e.message);
     await supabase.auth.signOut().catch(() => {});
   }
+}
+
+async function startGpsTracking() {
+  if (!state.activeTrip) return;
+  currentWatchState = 'conduccion';
+  startTracking(state.activeTrip.id, handleGpsUpdate);
 }
 
 export function render() {
@@ -44,6 +63,12 @@ export function render() {
     default: html = screenDashboard();
   }
   scr.innerHTML = html;
+  if (state.driverScreen === 'activo') {
+    // Inicializar mapa Leaflet tras renderizar
+    setTimeout(() => initLeafletMap(), 0);
+    // Cargar estado persistido y actualizar mapa
+    loadPersistedTracking();
+  }
   if (state.driverScreen === 'historial') loadHistorial();
   if (state.driverScreen === 'resumen') loadResumenPreview();
   ensureTicker();
@@ -63,7 +88,32 @@ function buildNav() {
 }
 
 export function goDriverScreen(s) {
+  const prevScreen = state.driverScreen;
   state.driverScreen = s;
+
+  // Manejo de tracking GPS al cambiar de pantalla
+  if (state.activeTrip) {
+    if (s === 'activo') {
+      // Entrando a la pantalla activa
+      if (state.activeTrip.status === 'conduccion' && currentWatchState !== 'conduccion') {
+        startGpsTracking();
+      } else if (state.activeTrip.status === 'espera' && currentWatchState !== 'espera') {
+        // En espera: pausar watchPosition pero mantener persistencia
+        pauseGpsTracking();
+        currentWatchState = 'espera';
+      }
+    } else {
+      // Saliendo de la pantalla activa
+      if (prevScreen === 'activo') {
+        if (state.activeTrip.status === 'conduccion') {
+          // Seguimos trackando en background
+          currentWatchState = 'conduccion';
+        } else if (state.activeTrip.status === 'espera') {
+          currentWatchState = 'espera';
+        }
+      }
+    }
+  }
   render();
 }
 window.goDriverScreen = goDriverScreen;
@@ -241,9 +291,11 @@ window.beginTrip = async () => {
       total_km: 0,
       total_wait_seconds: 0,
     });
-    tripVisual.routePoints = [[10, 90]];
+    // Limpiar persistencia anterior si existe
+    clearTrackingState();
     state.activeTrip = trip;
     goDriverScreen('activo');
+    // El goDriverScreen llamará a startGpsTracking automáticamente
   } catch (e) {
     showToast(e.message);
   }
@@ -252,10 +304,19 @@ window.beginTrip = async () => {
 window.toggleEspera = async () => {
   const trip = state.activeTrip;
   if (!trip) return;
-  const status = trip.status === 'conduccion' ? 'espera' : 'conduccion';
+  const newStatus = trip.status === 'conduccion' ? 'espera' : 'conduccion';
   try {
-    const updated = await updateTrip(trip.id, { status });
+    const updated = await updateTrip(trip.id, { status: newStatus });
     state.activeTrip = updated;
+
+    // Manejo de GPS tracking según el nuevo estado
+    if (newStatus === 'espera') {
+      pauseGpsTracking();
+      currentWatchState = 'espera';
+    } else if (newStatus === 'conduccion') {
+      await resumeGpsTracking();
+      currentWatchState = 'conduccion';
+    }
     render();
   } catch (e) {
     showToast(e.message);
@@ -263,14 +324,190 @@ window.toggleEspera = async () => {
 };
 
 window.openNavegar = () => {
-  window.open('https://www.google.com/maps/dir/?api=1&destination=&travelmode=driving', '_blank');
+  if (state.activeTrip) {
+    const lastPos = getLastPosition();
+    if (lastPos && lastPos.lat && lastPos.lon) {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${lastPos.lat},${lastPos.lon}&travelmode=driving`, '_blank');
+    } else {
+      window.open('https://www.google.com/maps/dir/?api=1&destination=&travelmode=driving', '_blank');
+    }
+  } else {
+    window.open('https://www.google.com/maps/dir/?api=1&destination=&travelmode=driving', '_blank');
+  }
   showToast('Abriendo navegación externa (Google Maps)…');
 };
 
 window.goResumen = () => {
+  // No paramos el tracking GPS al ir a resumen (solo paramos el ticker UI)
   stopTicker();
   goDriverScreen('resumen');
 };
+
+// -----------------------------------------------------------
+// Funciones de tracking GPS
+// -----------------------------------------------------------
+function handleGpsUpdate(data) {
+  if (!state.activeTrip) return;
+
+  if (data.error) {
+    console.warn('GPS error:', data.error);
+    return;
+  }
+
+  // Actualizar km en el estado
+  state.activeTrip.total_km = data.totalKm;
+  state.activeTrip.total_wait_seconds = data.totalWaitSeconds;
+
+  // Actualizar puntos de ruta para el mapa
+  if (state.driverScreen === 'activo') {
+    updateMapRoute(data.routePoints);
+    updateMapPosition(data.lat, data.lon, data.accuracy);
+    updateKmDisplay(data.totalKm);
+  }
+}
+
+function pauseGpsTracking() {
+  if (!state.activeTrip) return;
+  pauseTracking(state.activeTrip.id);
+}
+
+async function resumeGpsTracking() {
+  if (!state.activeTrip) return;
+  resumeTracking(state.activeTrip.id, handleGpsUpdate);
+}
+
+// Cargar estado persistido al volver a la app
+function loadPersistedTracking() {
+  if (!state.activeTrip) return;
+  const saved = loadTrackingState(state.activeTrip.id);
+  if (saved) {
+    state.activeTrip.total_km = saved.totalKm ?? 0;
+    state.activeTrip.total_wait_seconds = saved.totalWaitSeconds ?? 0;
+    // Si estamos en pantalla activo, actualizar UI
+    if (state.driverScreen === 'activo') {
+      updateMapRoute(saved.routePoints ?? []);
+      if (saved.lastLat != null && saved.lastLon != null) {
+        updateMapPosition(saved.lastLat, saved.lastLon);
+      }
+      updateKmDisplay(saved.totalKm ?? 0);
+    }
+  }
+}
+
+// -----------------------------------------------------------
+// Mapa Leaflet
+// -----------------------------------------------------------
+let leafletMap = null;
+let routePolyline = null;
+let positionMarker = null;
+let followUser = true; // si true, el mapa sigue al usuario automáticamente
+
+function initLeafletMap() {
+  if (leafletMap) return; // ya inicializado
+
+  const container = document.getElementById('leaflet-map');
+  if (!container) return;
+
+  // Inicializar mapa centrado en Santiago por defecto
+  leafletMap = L.map('leaflet-map', {
+    zoomControl: true,
+    attributionControl: true,
+    preferCanvas: true,
+  }).setView([-33.4489, -70.6693], 15);
+
+  // Tiles OpenStreetMap
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(leafletMap);
+
+  // Polilínea de la ruta
+  routePolyline = L.polyline([], {
+    color: '#1a237e',
+    weight: 4,
+    opacity: 0.8,
+    lineCap: 'round',
+    lineJoin: 'round',
+  }).addTo(leafletMap);
+
+  // Marcador de posición actual
+  positionMarker = L.circleMarker([0, 0], {
+    radius: 8,
+    fillColor: '#1a237e',
+    color: '#fff',
+    weight: 2,
+    opacity: 1,
+    fillOpacity: 1,
+  }).addTo(leafletMap);
+
+  // Forzar resize después de un tick (por si el contenedor estaba oculto)
+  setTimeout(() => leafletMap.invalidateSize(), 100);
+
+  // Botón recentrar
+  window.recenterMap = () => {
+    followUser = true;
+    if (positionMarker && positionMarker.getLatLng) {
+      const pos = positionMarker.getLatLng();
+      if (pos.lat !== 0 || pos.lng !== 0) {
+        leafletMap.setView([pos.lat, pos.lng], 17, { animate: true });
+      }
+    }
+  };
+
+  // Detectar movimiento manual del usuario
+  leafletMap.on('dragstart zoomstart', () => {
+    followUser = false;
+  });
+}
+
+function updateMapRoute(routePoints) {
+  if (!leafletMap || !routePolyline) return;
+  if (!routePoints || routePoints.length === 0) return;
+
+  const latLngs = routePoints.map(p => [p.lat, p.lon]).filter(p => p[0] != null && p[1] != null);
+  if (latLngs.length > 0) {
+    routePolyline.setLatLngs(latLngs);
+    // Ajustar bounds solo si followUser está activo
+    if (followUser) {
+      leafletMap.fitBounds(routePolyline.getBounds(), { padding: [20, 20], maxZoom: 17 });
+    }
+  }
+}
+
+function updateMapPosition(lat, lon, accuracy) {
+  if (!leafletMap || !positionMarker) return;
+  if (lat == null || lon == null) return;
+
+  const latLng = L.latLng(lat, lon);
+  positionMarker.setLatLng(latLng);
+
+  // Actualizar círculo de precisión si se proporciona
+  if (accuracy && accuracy > 0) {
+    positionMarker.setRadius(Math.max(8, accuracy / 2));
+  }
+
+  if (followUser) {
+    leafletMap.setView(latLng, leafletMap.getZoom(), { animate: true, duration: 0.5 });
+  }
+}
+
+function updateKmDisplay(totalKm) {
+  const el = document.getElementById('km-display');
+  if (el) el.textContent = Number(totalKm || 0).toFixed(2);
+}
+
+function updateWaitDisplay(totalWaitSeconds) {
+  const el = document.getElementById('wait-display');
+  if (el) {
+    // fmtHM no está disponible aquí, usamos implementación local
+    const h = Math.floor(totalWaitSeconds / 3600);
+    const m = Math.floor((totalWaitSeconds % 3600) / 60);
+    const s = totalWaitSeconds % 60;
+    el.textContent = h > 0
+      ? `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+}
 
 function screenActivo() {
   const trip = state.activeTrip;
@@ -279,22 +516,17 @@ function screenActivo() {
   const ceco = cecoOf(contract, trip.ceco_id);
   const veh = vehicleById(trip.vehicle_id);
   const elapsedTotal = (Date.now() - new Date(trip.start_time).getTime()) / 1000;
-  const points = tripVisual.routePoints.map((p) => p.join(',')).join(' ');
+
   return `
     <div class="row">
       <span class="chip chip-${esc(trip.status)}">${trip.status === 'conduccion' ? '● En conducción' : '● En espera'}</span>
       <span class="mini-label">${fmtHM(elapsedTotal)}</span>
     </div>
     <div class="map-box">
-      <svg viewBox="0 0 220 190" preserveAspectRatio="none">
-        <rect width="220" height="190" fill="#e9edf5"/>
-        <g stroke="#d3d9e8" stroke-width="1">
-          ${[0, 1, 2, 3, 4, 5].map((i) => `<line x1="0" y1="${i * 38}" x2="220" y2="${i * 38}"/>`).join('')}
-          ${[0, 1, 2, 3, 4, 5, 6].map((i) => `<line x1="${i * 36}" y1="0" x2="${i * 36}" y2="190"/>`).join('')}
-        </g>
-        <polyline points="${points}" fill="none" stroke="#1a237e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="${tripVisual.routePoints[tripVisual.routePoints.length - 1][0]}" cy="${tripVisual.routePoints[tripVisual.routePoints.length - 1][1]}" r="5" fill="#1a237e"/>
-      </svg>
+      <div id="leaflet-map" style="width:100%; height:100%;"></div>
+      <button id="btn-recenter" class="btn btn-sm" style="position:absolute; bottom:10px; right:10px; z-index:1000; padding:8px 12px; border-radius:20px; box-shadow:0 2px 6px rgba(0,0,0,0.2);" onclick="recenterMap()" title="Centrar en mi posición">
+        ${icon('nav')} Centrar
+      </button>
     </div>
     <div class="card">
       <div class="row"><span class="mini-label">CONTRATO</span><span style="font-size:12px; font-weight:600;">${esc(contract.name || '')}</span></div>
@@ -305,11 +537,11 @@ function screenActivo() {
     <div class="grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
       <div class="card gray" style="text-align:center;">
         <div class="mini-label">KM RECORRIDOS</div>
-        <div class="big-stat">${Number(trip.total_km || 0).toFixed(2)}</div>
+        <div class="big-stat" id="km-display">${Number(trip.total_km || 0).toFixed(2)}</div>
       </div>
       <div class="card gray" style="text-align:center;">
         <div class="mini-label">TIEMPO ESPERA</div>
-        <div class="big-stat" style="color:var(--wait);">${fmtHM(trip.total_wait_seconds || 0)}</div>
+        <div class="big-stat" id="wait-display" style="color:var(--wait);">${fmtHM(trip.total_wait_seconds || 0)}</div>
       </div>
     </div>
     <button class="btn btn-outline btn-block" onclick="openNavegar()">${icon('nav')} Navegar (Google Maps / Waze)</button>
@@ -407,6 +639,9 @@ window.confirmarViaje = async () => {
     // El servidor calcula montos (tarifa vigente al inicio del viaje) y cierra el viaje.
     await finalizeTrip(trip.id);
     stopTicker();
+    stopTracking(trip.id);
+    clearTrackingState();
+    leafletMap = null; routePolyline = null; positionMarker = null;
     state.activeTrip = null;
     showToast('Viaje guardado correctamente');
     state.driverScreen = 'dashboard';
@@ -499,6 +734,7 @@ function screenPerfil() {
   `;
 }
 window.driverLogout = async () => {
+  if (state.activeTrip) stopTracking(state.activeTrip.id);
   stopTicker();
   audit('logout').catch(() => {});
   await supabase.auth.signOut().catch(() => {});
@@ -509,7 +745,7 @@ export function stopDriverTicker() {
 }
 
 // ---------------------------------------------------------------------------
-// Ticker: simula GPS/km y cronómetro. Persistencia cada 3 ticks.
+// Ticker: actualiza contador de espera y re-renderiza UI. Los km los maneja GPS tracking.
 function ensureTicker() {
   stopTicker();
   if (state.mode === 'driver' && state.driverScreen === 'activo' && state.activeTrip && state.activeTrip.status !== 'finalizado') {
@@ -517,25 +753,18 @@ function ensureTicker() {
       const trip = state.activeTrip;
       if (!trip) return;
       tickCount++;
-      if (trip.status === 'conduccion') {
-        trip.total_km = Math.round((Number(trip.total_km) + 0.006 + Math.random() * 0.02) * 100) / 100;
-        const last = tripVisual.routePoints[tripVisual.routePoints.length - 1];
-        let nx = last[0] + (Math.random() * 16 - 6);
-        let ny = last[1] + (Math.random() * 16 - 8);
-        nx = Math.max(10, Math.min(210, nx));
-        ny = Math.max(10, Math.min(180, ny));
-        tripVisual.routePoints.push([nx, ny]);
-        if (tripVisual.routePoints.length > 60) tripVisual.routePoints.shift();
-      } else if (trip.status === 'espera') {
+      if (trip.status === 'espera') {
         trip.total_wait_seconds += 1;
+        updateWaitDisplay(trip.total_wait_seconds);
       }
+      // Persistir cada 3 ticks (solo wait_seconds, los km ya se sincronizan por GPS)
       if (tickCount % 3 === 0 && trip.status !== 'finalizado') {
         updateTrip(trip.id, {
-          total_km: trip.total_km,
           total_wait_seconds: trip.total_wait_seconds,
         }).catch(() => {});
       }
-      render();
+      // Re-render solo el tiempo de espera (no toda la pantalla para evitar parpadeo del mapa)
+      // Nota: render() completa reinicializaría el mapa; solo actualizamos el display
     }, 1000);
   }
 }

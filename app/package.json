@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
-    "exceljs": "^4.4.0"
+    "exceljs": "^4.4.0",
+    "leaflet": "^1.9.4"
   },
   "devDependencies": {
     "vite": "^5.4.0"

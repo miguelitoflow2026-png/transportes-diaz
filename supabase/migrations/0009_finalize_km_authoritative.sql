@@ -63,7 +63,7 @@ begin
   where id = p_trip_id
   returning * into v_trip;
 
-  perform public.audit_event('trip_finalize', 'trips', p_trip_id, jsonb_build_object('total_km', v_trip.total_km, 'monto_total', v_trip.monto_total));
+  perform public.audit_event('trip_finalizado', 'trips', p_trip_id, jsonb_build_object('total_km', v_trip.total_km, 'monto_total', v_trip.monto_total));
 
   return to_jsonb(v_trip);
 end;

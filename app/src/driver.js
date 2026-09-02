@@ -6,6 +6,7 @@ import { esc, icon, showToast, showShell, fmtHM, fmtHMshort, fmtDate, fmtTime, f
 import { loadDriverContext, fetchActiveTrip, createTrip, updateTrip, finalizeTrip, previewAmounts, getMyTrips, getContractPdfUrl, audit } from './api.js';
 import { startTracking, stopTracking, pauseTracking, resumeTracking, getLastPosition, clearTrackingState, setWaitSeconds, haversineMeters, loadTrackingState } from './tracing.js';
 import { initLeafletMap, updateMapRoute, updateMapPosition, destroyMap } from './services/map.js';
+import { searchNominatim } from './services/geocoding.js';
 
 let ticker = null;
 let tickCount = 0;
@@ -33,26 +34,7 @@ function canTransition(from, to) {
   return (TRANSICIONES_VALIDAS[from] || []).includes(to);
 }
 
-// Nominatim (OSM) — búsqueda de direcciones sin API key
 let nominatimTimer = null;
-async function searchNominatim(query) {
-  if (!query || query.trim().length < 3) return [];
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=cl&q=${encodeURIComponent(query.trim())}`;
-  try {
-    const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.map(d => ({
-      lat: parseFloat(d.lat),
-      lon: parseFloat(d.lon),
-      display_name: d.display_name,
-      address: d.display_name.split(',').slice(0, 3).join(','),
-    }));
-  } catch (e) {
-    console.warn('Nominatim error:', e);
-    return [];
-  }
-}
 
 export async function enter() {
   try {

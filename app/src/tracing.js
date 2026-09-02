@@ -177,58 +177,102 @@ export function startTracking(tripId, onPositionUpdate) {
   // Solicitar Wake Lock
   requestWakeLock();
 
-  // Callback de posición — con filtros robustos anti-outliers
+  // Callback de posición — con filtros robustos anti-outliers + debug temporal
   const handlePosition = (pos) => {
     let { latitude, longitude, accuracy, altitude, speed, heading } = pos.coords;
     const timestamp = pos.timestamp;
 
-    // --- Fix 1: validar y corregir inversión lat/lng ---
-    // Leaflet espera [lat, lng]; algunos dispositivos o Nominatim devuelven invertido
+    // DEBUG temporal: log de posición cruda (remover después de depurar V)
+    console.log('[GPS raw]', { latitude, longitude, accuracy: accuracy?.toFixed(1), speed: speed?.toFixed(1), heading, timestamp: new Date(timestamp).toISOString(), lastLat, lastLon, routePointsLen: routePoints.length });
+
+    // --- Fix 1: descartar coordenadas nulas/inválidas ---
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      console.warn('[GPS descartado] NaN/Infinite', { latitude, longitude });
+      return;
+    }
+    if (latitude === 0 && longitude === 0) {
+      console.warn('[GPS descartado] (0,0) placeholder');
+      return;
+    }
     if (Math.abs(latitude) > 90 && Math.abs(longitude) <= 90) {
-      // Claramente invertido: lat fuera de rango, lon dentro
+      // Inversión clara lat/lng
+      console.warn('[GPS corregido] Inversión lat/lng detectada');
       const tmp = latitude; latitude = longitude; longitude = tmp;
     }
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-    if (latitude === 0 && longitude === 0) return; // placeholder (0,0) = océano, ignorar
-    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return;
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      console.warn('[GPS descartado] fuera de rango', { latitude, longitude });
+      return;
+    }
+    if (accuracy != null && accuracy > 50) {
+      console.warn('[GPS descartado] accuracy mala', accuracy);
+      return;
+    }
 
-    // Filtrar por precisión (ignorar si accuracy > 50m o es null muy malo)
-    if (accuracy != null && accuracy > 50) return;
-
-    // --- Fix 2: filtro de velocidad/outlier (salto imposible) ---
+    // --- Fix 2: filtro de velocidad/outlier + evitar mancha por puntos densos ---
     let incKm = 0;
+    let shouldAddToPolyline = false;
     if (lastLat != null && lastLon != null) {
       const distM = haversineMeters(lastLat, lastLon, latitude, longitude);
       const dtSec = lastRecordedAt ? (timestamp - new Date(lastRecordedAt).getTime()) / 1000 : 1;
       const speedMps = dtSec > 0 ? distM / dtSec : 0;
-      // Si implica > 50 m/s (~180 km/h) es un salto GPS imposible para un camión
-      if (speedMps > 50) {
-        console.warn(`Outlier GPS descartado: ${distM.toFixed(0)}m en ${dtSec.toFixed(1)}s (${(speedMps*3.6).toFixed(0)} km/h)`);
+      console.log('[GPS delta]', { distM: distM.toFixed(1), dtSec: dtSec.toFixed(1), speedKmh: (speedMps*3.6).toFixed(1) });
+      if (speedMps > 41.6) { // 150 km/h, ajustado para vehículo urbano
+        console.warn(`[GPS descartado] Outlier velocidad ${distM.toFixed(0)}m en ${dtSec.toFixed(1)}s (${(speedMps*3.6).toFixed(0)} km/h)`);
+        return;
+      }
+      if (distM < 0.5) {
+        console.log('[GPS descartado] ruido <0.5m');
         return;
       }
       if (distM >= MIN_DISTANCE_M) {
         incKm = distM / 1000;
         totalKm = Math.round((totalKm + incKm) * 100) / 100;
+        shouldAddToPolyline = true;
       } else {
-        // Movimiento <5m: no sumar km pero igual actualizar posición para el mapa
-        // (evita mancha negra por puntos casi idénticos apilados)
-        if (distM < 0.5) return; // ruido GPS <0.5m: descartar por completo
+        // Movimiento 0.5-5m: NO agregar a polyline para evitar mancha negra por puntos densos
+        console.log(`[GPS no polyline] movimiento pequeño ${distM.toFixed(1)}m (<5m), solo actualiza posición`);
+        // Actualizar lastLat/Lon pero no agregar a ruta densa
+        lastLat = latitude;
+        lastLon = longitude;
+        lastRecordedAt = new Date(timestamp).toISOString();
+        // Notificar solo posición, sin agregar a routePoints
+        onPositionUpdate?.({
+          lat: latitude, lon: longitude, accuracy, altitude, speed, heading,
+          totalKm, totalWaitSeconds, totalPauseSeconds,
+          routePoints: [...routePoints], incKm: 0,
+        });
+        return;
       }
     } else if (routePoints.length > 0) {
-      // Si no hay lastLat pero hay ruta (recarga), usar último punto de ruta para distancia
       const last = routePoints[routePoints.length - 1];
       const distM = haversineMeters(last.lat, last.lon, latitude, longitude);
-      if (distM < 0.5) return;
+      if (distM < 0.5) {
+        console.log('[GPS descartado] duplicado <0.5m vs ruta');
+        return;
+      }
+      // Para recarga, el primer punto nuevo debe ser >=5m del último guardado para ser considerado movimiento real
+      if (distM < MIN_DISTANCE_M) {
+        console.log(`[GPS primer punto post-recarga] ${distM.toFixed(1)}m <5m, esperando movimiento real`);
+        // No agregar aún, pero actualizar lastLat para próxima comparación
+        lastLat = latitude; lastLon = longitude; lastRecordedAt = new Date(timestamp).toISOString();
+        return;
+      }
+      shouldAddToPolyline = true;
+    } else {
+      // Primer punto absoluto del viaje — siempre agregar
+      shouldAddToPolyline = true;
     }
 
-    // Actualizar último punto conocido
+    // Actualizar último punto conocido y guardar en ruta solo si es movimiento real
     lastLat = latitude;
     lastLon = longitude;
     lastRecordedAt = new Date(timestamp).toISOString();
 
-    // Guardar punto en ruta (para el mapa) — solo si pasó todos los filtros
-    routePoints.push({ lat: latitude, lon: longitude, accuracy, altitude, speed, heading, timestamp: lastRecordedAt });
-    if (routePoints.length > 500) routePoints.shift(); // límite memoria
+    if (shouldAddToPolyline) {
+      routePoints.push({ lat: latitude, lon: longitude, accuracy, altitude, speed, heading, timestamp: lastRecordedAt });
+      if (routePoints.length > 500) routePoints.shift(); // límite memoria
+      console.log('[GPS polyline] punto agregado', { lat: latitude.toFixed(5), lon: longitude.toFixed(5), totalKm, points: routePoints.length });
+    }
 
     // Persistir localStorage en cada posición válida
     saveTrackingState(tripId, {

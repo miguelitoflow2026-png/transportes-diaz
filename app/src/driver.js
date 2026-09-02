@@ -14,20 +14,19 @@ let tickCount = 0;
 const tripVisual = { routePoints: [[10, 90]] };
 
 // Estado de tracking GPS
-let currentWatchState = null; // 'conduccion' | 'espera' | 'pausa' | null
+let currentWatchState = null; // 'conduccion' | 'espera' | null
 
-// Máquina de estados explícita del viaje
+// Máquina de estados explícita — simplificada: solo conduccion ↔ espera → finalizado
+// Nota: 'pausa' queda en el enum de DB (migración 0007) pero sin uso en frontend por simplicidad
 const ESTADOS = {
   conduccion: { label: 'En conducción', chip: 'chip-conduccion', icon: '●' },
   espera: { label: 'En espera', chip: 'chip-espera', icon: '●' },
-  pausa: { label: 'En pausa', chip: 'chip-pausa', icon: '⏸' },
   finalizado: { label: 'Finalizado', chip: 'chip-finalizado', icon: '✓' },
 };
 
 const TRANSICIONES_VALIDAS = {
-  conduccion: ['espera', 'pausa', 'finalizado'],
-  espera: ['conduccion', 'pausa', 'finalizado'],
-  pausa: ['conduccion', 'espera', 'finalizado'],
+  conduccion: ['espera', 'finalizado'],
+  espera: ['conduccion', 'finalizado'],
   finalizado: [],
 };
 
@@ -66,7 +65,7 @@ export async function enter() {
     if (state.activeTrip) {
       if (state.activeTrip.status === 'conduccion') {
         await startGpsTracking();
-      } else if (state.activeTrip.status === 'espera' || state.activeTrip.status === 'pausa') {
+      } else if (state.activeTrip.status === 'espera') {
         loadPersistedTracking();
       }
     }
@@ -138,20 +137,18 @@ export function goDriverScreen(s) {
   const prevScreen = state.driverScreen;
   state.driverScreen = s;
 
-  // Manejo de tracking GPS al cambiar de pantalla — incluye pausa
   if (state.activeTrip) {
     if (s === 'activo') {
       if (state.activeTrip.status === 'conduccion' && currentWatchState !== 'conduccion') {
         startGpsTracking();
-      } else if ((state.activeTrip.status === 'espera' || state.activeTrip.status === 'pausa') && currentWatchState !== state.activeTrip.status) {
+      } else if (state.activeTrip.status === 'espera' && currentWatchState !== 'espera') {
         pauseGpsTracking();
-        currentWatchState = state.activeTrip.status;
+        currentWatchState = 'espera';
       }
     } else {
       if (prevScreen === 'activo') {
         if (state.activeTrip.status === 'conduccion') currentWatchState = 'conduccion';
         else if (state.activeTrip.status === 'espera') currentWatchState = 'espera';
-        else if (state.activeTrip.status === 'pausa') currentWatchState = 'pausa';
       }
     }
   }
@@ -427,41 +424,16 @@ window.beginTrip = async () => {
 window.toggleEspera = async () => {
   const trip = state.activeTrip;
   if (!trip) return;
-  // Máquina de estados: solo desde conduccion o pausa se puede ir a espera
-  if (trip.status === 'pausa') {
-    showToast('No puedes entrar en espera estando en pausa — reanuda primero');
-    return;
-  }
   const newStatus = trip.status === 'conduccion' ? 'espera' : 'conduccion';
   if (!canTransition(trip.status, newStatus)) { showToast(`Transición no válida: ${trip.status} → ${newStatus}`); return; }
   const currentKm = trip.total_km ?? 0;
   const currentWait = trip.total_wait_seconds ?? 0;
-  const currentPause = trip.total_pause_seconds ?? 0;
   try {
-    const updated = await updateTrip(trip.id, { status: newStatus, total_km: currentKm, total_wait_seconds: currentWait, total_pause_seconds: currentPause });
+    const updated = await updateTrip(trip.id, { status: newStatus, total_km: currentKm, total_wait_seconds: currentWait });
     const serverKm = Number(updated.total_km ?? 0);
     if (currentKm > serverKm) { updated.total_km = currentKm; updateTrip(trip.id, { total_km: currentKm }).catch(() => {}); }
     state.activeTrip = updated;
     if (newStatus === 'espera') { pauseGpsTracking(); currentWatchState = 'espera'; }
-    else if (newStatus === 'conduccion') { await resumeGpsTracking(); currentWatchState = 'conduccion'; }
-    render();
-  } catch (e) { showToast(e.message); }
-};
-
-window.togglePausa = async () => {
-  const trip = state.activeTrip;
-  if (!trip) return;
-  const newStatus = trip.status === 'pausa' ? 'conduccion' : 'pausa';
-  if (!canTransition(trip.status, newStatus)) { showToast(`Transición no válida: ${trip.status} → ${newStatus}`); return; }
-  const currentKm = trip.total_km ?? 0;
-  const currentWait = trip.total_wait_seconds ?? 0;
-  const currentPause = trip.total_pause_seconds ?? 0;
-  try {
-    const updated = await updateTrip(trip.id, { status: newStatus, total_km: currentKm, total_wait_seconds: currentWait, total_pause_seconds: currentPause });
-    const serverKm = Number(updated.total_km ?? 0);
-    if (currentKm > serverKm) { updated.total_km = currentKm; updateTrip(trip.id, { total_km: currentKm }).catch(() => {}); }
-    state.activeTrip = updated;
-    if (newStatus === 'pausa') { pauseGpsTracking(); currentWatchState = 'pausa'; }
     else if (newStatus === 'conduccion') { await resumeGpsTracking(); currentWatchState = 'conduccion'; }
     render();
   } catch (e) { showToast(e.message); }
@@ -562,10 +534,21 @@ let positionMarker = null;
 let followUser = true; // si true, el mapa sigue al usuario automáticamente
 
 function initLeafletMap() {
-  if (leafletMap) return; // ya inicializado
-
   const container = document.getElementById('leaflet-map');
   if (!container) return;
+
+  // Si el mapa ya existe pero el contenedor es nuevo (re-render por innerHTML), limpiar el anterior para evitar duplicado/sombra
+  if (leafletMap) {
+    const oldContainer = leafletMap.getContainer();
+    if (oldContainer !== container) {
+      try { leafletMap.remove(); } catch (e) {}
+      leafletMap = null; routePolyline = null; positionMarker = null;
+    } else {
+      setTimeout(() => leafletMap.invalidateSize(), 80);
+      setTimeout(() => leafletMap.invalidateSize(), 300);
+      return;
+    }
+  }
 
   // Inicializar mapa centrado en Santiago por defecto
   leafletMap = L.map('leaflet-map', {
@@ -688,34 +671,11 @@ function screenActivo() {
   const estadoInfo = ESTADOS[trip.status] || ESTADOS.conduccion;
   const puntoInicioTxt = trip.punto_inicio?.display_name ? esc(trip.punto_inicio.display_name.split(',').slice(0,2).join(',')) : '';
   const puntoFinTxt = trip.punto_fin?.display_name ? esc(trip.punto_fin.display_name.split(',').slice(0,2).join(',')) : '';
-  // Botones según máquina de estados explícita
-  let actionButtons = '';
-  if (trip.status === 'conduccion') {
-    actionButtons = `
-      <div style="display:flex; gap:10px;">
-        <button class="btn btn-wait btn-block" onclick="toggleEspera()">${icon('pause')} Iniciar espera</button>
-        <button class="btn btn-outline btn-block" onclick="togglePausa()">${icon('pause')} Pausar viaje</button>
-      </div>`;
-  } else if (trip.status === 'espera') {
-    actionButtons = `
-      <div style="display:flex; gap:10px;">
-        <button class="btn btn-primary btn-block" onclick="toggleEspera()">${icon('car')} Reanudar conducción</button>
-        <button class="btn btn-outline btn-block" onclick="togglePausa()">${icon('pause')} Pausar</button>
-      </div>`;
-  } else if (trip.status === 'pausa') {
-    actionButtons = `
-      <div style="display:flex; gap:10px;">
-        <button class="btn btn-primary btn-block" onclick="togglePausa()">${icon('car')} Reanudar viaje</button>
-        <button class="btn btn-outline btn-block" onclick="toggleEspera()">${icon('pause')} Pasar a espera</button>
-      </div>`;
-  }
-  // Grid de métricas: km siempre, segunda tarjeta cambia según estado
-  let metricSecond = '';
-  if (trip.status === 'pausa') {
-    metricSecond = `<div class="card gray" style="text-align:center;"><div class="mini-label">TIEMPO PAUSA</div><div class="big-stat" id="pause-display" style="color:#7c3aed;">${fmtHM(trip.total_pause_seconds || 0)}</div></div>`;
-  } else {
-    metricSecond = `<div class="card gray" style="text-align:center;"><div class="mini-label">TIEMPO ESPERA</div><div class="big-stat" id="wait-display" style="color:var(--wait);">${fmtHM(trip.total_wait_seconds || 0)}</div></div>`;
-  }
+  // Botón único que alterna según estado (simplificado: solo conduccion ↔ espera)
+  const actionButtons = trip.status === 'conduccion'
+    ? `<button class="btn btn-wait btn-block" onclick="toggleEspera()">${icon('pause')} Iniciar espera</button>`
+    : `<button class="btn btn-primary btn-block" onclick="toggleEspera()">${icon('car')} Reanudar viaje</button>`;
+  const metricSecond = `<div class="card gray" style="text-align:center;"><div class="mini-label">TIEMPO ESPERA</div><div class="big-stat" id="wait-display" style="color:var(--wait);">${fmtHM(trip.total_wait_seconds || 0)}</div></div>`;
 
   return `
     <div class="row">
@@ -953,25 +913,12 @@ function ensureTicker() {
         trip.total_wait_seconds = (trip.total_wait_seconds ?? 0) + 1;
         try { setWaitSeconds(trip.id, trip.total_wait_seconds); } catch (e) {}
         updateWaitDisplay(trip.total_wait_seconds);
-      } else if (trip.status === 'pausa') {
-        trip.total_pause_seconds = (trip.total_pause_seconds ?? 0) + 1;
-        try { setPauseSeconds(trip.id, trip.total_pause_seconds); } catch (e) {}
-        updatePauseDisplay(trip.total_pause_seconds);
       }
-      // Persistir cada 3 ticks — espera y pausa separados
-      if (tickCount % 3 === 0 && trip.status !== 'finalizado') {
-        const patch = {};
-        if (trip.status === 'espera') patch.total_wait_seconds = trip.total_wait_seconds;
-        if (trip.status === 'pausa') patch.total_pause_seconds = trip.total_pause_seconds;
-        if (Object.keys(patch).length) updateTrip(trip.id, patch).catch(() => {});
+      if (tickCount % 3 === 0 && trip.status === 'espera') {
+        updateTrip(trip.id, { total_wait_seconds: trip.total_wait_seconds }).catch(() => {});
       }
     }, 1000);
   }
-}
-
-function updatePauseDisplay(seconds) {
-  const el = document.getElementById('pause-display');
-  if (el) el.textContent = fmtHM(seconds ?? 0);
 }
 
 function stopTicker() {

@@ -4,7 +4,7 @@ import { supabase } from './supabase.js';
 import { state } from './state.js';
 import { esc, icon, showToast, showShell, fmtHM, fmtHMshort, fmtDate, fmtTime, formatCLP } from './lib.js';
 import { loadDriverContext, fetchActiveTrip, createTrip, updateTrip, finalizeTrip, previewAmounts, getMyTrips, getContractPdfUrl, audit } from './api.js';
-import { startTracking, stopTracking, pauseTracking, resumeTracking, getLastPosition, clearTrackingState } from './tracing.js';
+import { startTracking, stopTracking, pauseTracking, resumeTracking, getLastPosition, clearTrackingState, setWaitSeconds, setPauseSeconds, haversineMeters } from './tracing.js';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -14,7 +14,48 @@ let tickCount = 0;
 const tripVisual = { routePoints: [[10, 90]] };
 
 // Estado de tracking GPS
-let currentWatchState = null; // 'conduccion' | 'espera' | null
+let currentWatchState = null; // 'conduccion' | 'espera' | 'pausa' | null
+
+// Máquina de estados explícita del viaje
+const ESTADOS = {
+  conduccion: { label: 'En conducción', chip: 'chip-conduccion', icon: '●' },
+  espera: { label: 'En espera', chip: 'chip-espera', icon: '●' },
+  pausa: { label: 'En pausa', chip: 'chip-pausa', icon: '⏸' },
+  finalizado: { label: 'Finalizado', chip: 'chip-finalizado', icon: '✓' },
+};
+
+const TRANSICIONES_VALIDAS = {
+  conduccion: ['espera', 'pausa', 'finalizado'],
+  espera: ['conduccion', 'pausa', 'finalizado'],
+  pausa: ['conduccion', 'espera', 'finalizado'],
+  finalizado: [],
+};
+
+function canTransition(from, to) {
+  if (!from) return to === 'conduccion';
+  return (TRANSICIONES_VALIDAS[from] || []).includes(to);
+}
+
+// Nominatim (OSM) — búsqueda de direcciones sin API key
+let nominatimTimer = null;
+async function searchNominatim(query) {
+  if (!query || query.trim().length < 3) return [];
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=cl&q=${encodeURIComponent(query.trim())}`;
+  try {
+    const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.map(d => ({
+      lat: parseFloat(d.lat),
+      lon: parseFloat(d.lon),
+      display_name: d.display_name,
+      address: d.display_name.split(',').slice(0, 3).join(','),
+    }));
+  } catch (e) {
+    console.warn('Nominatim error:', e);
+    return [];
+  }
+}
 
 export async function enter() {
   try {
@@ -55,6 +96,7 @@ export function render() {
     case 'dashboard': html = screenDashboard(); break;
     case 'seleccion': html = screenSeleccion(); break;
     case 'tipoViaje': html = screenTipoViaje(); break;
+    case 'puntos': html = screenPuntosViaje(); break;
     case 'activo': html = screenActivo(); break;
     case 'resumen': html = screenResumen(); break;
     case 'historial': html = screenHistorial(); break;
@@ -64,8 +106,15 @@ export function render() {
   }
   scr.innerHTML = html;
   if (state.driverScreen === 'activo') {
-    // Inicializar mapa Leaflet tras renderizar
-    setTimeout(() => initLeafletMap(), 0);
+    // Inicializar mapa Leaflet tras renderizar — doble invalidate para evitar recorte
+    setTimeout(() => {
+      initLeafletMap();
+      // Si el mapa ya existía, forzar invalidate igual (contenedor estaba oculto)
+      if (leafletMap) {
+        setTimeout(() => leafletMap.invalidateSize(), 80);
+        setTimeout(() => leafletMap.invalidateSize(), 300);
+      }
+    }, 0);
     // Cargar estado persistido y actualizar mapa
     loadPersistedTracking();
   }
@@ -135,11 +184,12 @@ function screenDashboard() {
   const first = (d.name || '').split(' ')[0];
   const dateLine = new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
 
+  const estadoInfo = ESTADOS[active?.status] || ESTADOS.conduccion;
   const activeCard = active
     ? `
       <div class="card" style="border-color:var(--primary);">
         <div class="row">
-          <span class="chip chip-${esc(active.status)}">${active.status === 'conduccion' ? '● En conducción' : '● En espera'}</span>
+          <span class="chip ${estadoInfo.chip}">${estadoInfo.icon} ${estadoInfo.label}</span>
           <span class="mini-label">${esc(contractById(active.contract_id)?.name || '')}</span>
         </div>
         <div class="divider"></div>
@@ -188,7 +238,7 @@ export function startNewTripFlow() {
     goDriverScreen('activo');
     return;
   }
-  state.newTrip = { contractId: null, cecoId: null, vehicleId: null, tripType: 'urbano' };
+  state.newTrip = { contractId: null, cecoId: null, vehicleId: null, tripType: 'urbano', puntoInicio: null, puntoFin: null };
   goDriverScreen('seleccion');
 }
 window.startNewTripFlow = startNewTripFlow;
@@ -271,13 +321,91 @@ function screenTipoViaje() {
       <button class="${nt.tripType === 'urbano' ? 'selected' : ''}" onclick="setTripType('urbano')">Urbano</button>
       <button class="${nt.tripType === 'interurbano' ? 'selected' : ''}" onclick="setTripType('interurbano')">Interurbano</button>
     </div>
-    <button class="btn btn-primary btn-block" onclick="beginTrip()">${icon('car')} Iniciar viaje — En conducción</button>
+    <button class="btn btn-primary btn-block" onclick="goToPuntos()">${icon('car')} Continuar — Puntos del viaje</button>
   `;
 }
 window.setTripType = (t) => {
   state.newTrip.tripType = t;
   goDriverScreen('tipoViaje');
 };
+
+window.goToPuntos = () => {
+  if (!state.newTrip.contractId || !state.newTrip.cecoId || !state.newTrip.vehicleId) {
+    showToast('Completa contrato, CECO y vehículo');
+    return;
+  }
+  goDriverScreen('puntos');
+};
+
+function screenPuntosViaje() {
+  const nt = state.newTrip;
+  const tieneInicio = !!nt.puntoInicio;
+  const tieneFin = !!nt.puntoFin;
+  return `
+    <div class="row"><button class="btn-outline btn btn-sm" onclick="goDriverScreen('tipoViaje')">← Volver</button></div>
+    <div class="screen-title">Puntos del viaje</div>
+    <div class="screen-sub">Indica inicio y destino (opcional, ayuda al seguimiento)</div>
+    <div class="card">
+      <div class="field">
+        <span class="label">Punto de inicio</span>
+        <input id="inputInicio" type="text" placeholder="Ej: Av. Providencia 1200, Santiago" value="${esc(nt.puntoInicio?.display_name || '')}" oninput="onPuntoSearch('inicio', this.value)" autocomplete="off" />
+        <div id="suggestInicio" class="suggest-box"></div>
+        ${tieneInicio ? `<div style="margin-top:8px; font-size:12px; color:var(--good);">✓ ${esc(nt.puntoInicio.display_name)}</div>` : ''}
+      </div>
+      <div style="height:14px;"></div>
+      <div class="field">
+        <span class="label">Punto de destino</span>
+        <input id="inputFin" type="text" placeholder="Ej: Aeropuerto SCL" value="${esc(nt.puntoFin?.display_name || '')}" oninput="onPuntoSearch('fin', this.value)" autocomplete="off" />
+        <div id="suggestFin" class="suggest-box"></div>
+        ${tieneFin ? `<div style="margin-top:8px; font-size:12px; color:var(--good);">✓ ${esc(nt.puntoFin.display_name)}</div>` : '<div class="mini-label" style="margin-top:6px;">Si no indicas destino, podrás conducir igual.</div>'}
+      </div>
+      <div style="height:10px;"></div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-outline btn-sm" style="flex:1;" onclick="useMyLocation('inicio')">${icon('nav')} Mi ubicación como inicio</button>
+        <button class="btn btn-outline btn-sm" style="flex:1;" onclick="useMyLocation('fin')">${icon('nav')} Mi ubicación como destino</button>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="beginTrip()">${icon('car')} Iniciar viaje — En conducción</button>
+    <button class="btn btn-outline btn-block" onclick="beginTripSinPuntos()">Iniciar sin puntos</button>
+  `;
+}
+
+window.onPuntoSearch = (tipo, query) => {
+  clearTimeout(nominatimTimer);
+  const boxId = tipo === 'inicio' ? 'suggestInicio' : 'suggestFin';
+  const box = document.getElementById(boxId);
+  if (!query || query.trim().length < 3) { if (box) box.innerHTML = ''; return; }
+  if (box) box.innerHTML = '<div class="mini-label" style="padding:8px;">Buscando…</div>';
+  nominatimTimer = setTimeout(async () => {
+    const results = await searchNominatim(query);
+    if (!box) return;
+    if (results.length === 0) { box.innerHTML = '<div class="mini-label" style="padding:8px;">Sin resultados</div>'; return; }
+    box.innerHTML = results.map(r => `<div class="suggest-item" onclick="selectPunto('${tipo}', ${r.lat}, ${r.lon}, '${esc(r.display_name).replace(/'/g, "\\'")}')">${esc(r.display_name)}</div>`).join('');
+  }, 400);
+};
+
+window.selectPunto = (tipo, lat, lon, display_name) => {
+  const punto = { lat, lon, display_name };
+  if (tipo === 'inicio') state.newTrip.puntoInicio = punto;
+  else state.newTrip.puntoFin = punto;
+  const boxId = tipo === 'inicio' ? 'suggestInicio' : 'suggestFin';
+  const box = document.getElementById(boxId);
+  if (box) box.innerHTML = '';
+  goDriverScreen('puntos');
+};
+
+window.useMyLocation = (tipo) => {
+  if (!navigator.geolocation) { showToast('Geolocalización no disponible'); return; }
+  showToast('Obteniendo tu ubicación…');
+  navigator.geolocation.getCurrentPosition(pos => {
+    const punto = { lat: pos.coords.latitude, lon: pos.coords.longitude, display_name: `Mi ubicación (${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)})` };
+    if (tipo === 'inicio') state.newTrip.puntoInicio = punto;
+    else state.newTrip.puntoFin = punto;
+    goDriverScreen('puntos');
+  }, err => showToast('No se pudo obtener ubicación: ' + err.message), { enableHighAccuracy: true, timeout: 8000 });
+};
+
+window.beginTripSinPuntos = () => window.beginTrip();
 
 window.beginTrip = async () => {
   const nt = state.newTrip;
@@ -290,6 +418,9 @@ window.beginTrip = async () => {
       status: 'conduccion',
       total_km: 0,
       total_wait_seconds: 0,
+      total_pause_seconds: 0,
+      punto_inicio: nt.puntoInicio || null,
+      punto_fin: nt.puntoFin || null,
     });
     // Limpiar persistencia anterior si existe
     clearTrackingState();
@@ -305,8 +436,18 @@ window.toggleEspera = async () => {
   const trip = state.activeTrip;
   if (!trip) return;
   const newStatus = trip.status === 'conduccion' ? 'espera' : 'conduccion';
+  // Flush km y wait actuales a Supabase antes de cambiar estado para no perder datos no sincronizados
+  const currentKm = trip.total_km ?? 0;
+  const currentWait = trip.total_wait_seconds ?? 0;
   try {
-    const updated = await updateTrip(trip.id, { status: newStatus });
+    const updated = await updateTrip(trip.id, { status: newStatus, total_km: currentKm, total_wait_seconds: currentWait });
+    // Preservar km local si es mayor que el devuelto (evita regresión por race)
+    const serverKm = Number(updated.total_km ?? 0);
+    if (currentKm > serverKm) {
+      updated.total_km = currentKm;
+      // Re-sincronizar el valor correcto
+      updateTrip(trip.id, { total_km: currentKm }).catch(() => {});
+    }
     state.activeTrip = updated;
 
     // Manejo de GPS tracking según el nuevo estado
@@ -440,8 +581,17 @@ function initLeafletMap() {
     fillOpacity: 1,
   }).addTo(leafletMap);
 
-  // Forzar resize después de un tick (por si el contenedor estaba oculto)
-  setTimeout(() => leafletMap.invalidateSize(), 100);
+  // Forzar resize después de un tick (por si el contenedor estaba oculto) — triple para cubrir animaciones
+  setTimeout(() => leafletMap.invalidateSize(), 80);
+  setTimeout(() => leafletMap.invalidateSize(), 300);
+  setTimeout(() => leafletMap.invalidateSize(), 700);
+
+  // ResizeObserver + window resize para recalcular tamaño si el layout cambia
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => leafletMap.invalidateSize());
+    ro.observe(container);
+  }
+  window.addEventListener('resize', () => leafletMap.invalidateSize());
 
   // Botón recentrar
   window.recenterMap = () => {
@@ -515,7 +665,8 @@ function screenActivo() {
   const contract = contractById(trip.contract_id) || {};
   const ceco = cecoOf(contract, trip.ceco_id);
   const veh = vehicleById(trip.vehicle_id);
-  const elapsedTotal = (Date.now() - new Date(trip.start_time).getTime()) / 1000;
+  const startMs = trip.start_time ? new Date(trip.start_time).getTime() : Date.now();
+  const elapsedTotal = Number.isFinite(startMs) ? Math.max(0, (Date.now() - startMs) / 1000) : 0;
 
   return `
     <div class="row">
@@ -524,7 +675,7 @@ function screenActivo() {
     </div>
     <div class="map-box">
       <div id="leaflet-map" style="width:100%; height:100%;"></div>
-      <button id="btn-recenter" class="btn btn-sm" style="position:absolute; bottom:10px; right:10px; z-index:1000; padding:8px 12px; border-radius:20px; box-shadow:0 2px 6px rgba(0,0,0,0.2);" onclick="recenterMap()" title="Centrar en mi posición">
+      <button id="btn-recenter" class="btn btn-sm" style="position:absolute; bottom:34px; right:12px; z-index:1000; padding:8px 14px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.22); background:#fff; border:1px solid var(--border);" onclick="recenterMap()" title="Centrar en mi posición">
         ${icon('nav')} Centrar
       </button>
     </div>
@@ -755,6 +906,8 @@ function ensureTicker() {
       tickCount++;
       if (trip.status === 'espera') {
         trip.total_wait_seconds += 1;
+        // Persistir en localStorage independiente del km
+        try { setWaitSeconds(trip.id, trip.total_wait_seconds); } catch (e) {}
         updateWaitDisplay(trip.total_wait_seconds);
       }
       // Persistir cada 3 ticks (solo wait_seconds, los km ya se sincronizan por GPS)

@@ -34,6 +34,7 @@ export function saveTrackingState(tripId, data) {
     tripId,
     totalKm: data.totalKm ?? 0,
     totalWaitSeconds: data.totalWaitSeconds ?? 0,
+    totalPauseSeconds: data.totalPauseSeconds ?? 0,
     lastLat: data.lastLat ?? null,
     lastLon: data.lastLon ?? null,
     lastRecordedAt: data.lastRecordedAt ?? null,
@@ -98,13 +99,14 @@ export function releaseWakeLock() {
 export async function syncToSupabase(tripId, data) {
   if (!tripId) return;
 
-  // 1) Actualizar total_km y total_wait_seconds en trips
+  // 1) Actualizar totales en trips (km, espera y pausa separados)
   try {
     await supabase
       .from('trips')
       .update({
         total_km: data.totalKm,
         total_wait_seconds: data.totalWaitSeconds,
+        total_pause_seconds: data.totalPauseSeconds ?? 0,
         updated_at: new Date().toISOString(),
       })
       .eq('id', tripId)
@@ -155,6 +157,7 @@ export function startTracking(tripId, onPositionUpdate) {
   const saved = loadTrackingState(tripId);
   let totalKm = 0;
   let totalWaitSeconds = 0;
+  let totalPauseSeconds = 0;
   let routePoints = [];
   let lastLat = null;
   let lastLon = null;
@@ -163,6 +166,7 @@ export function startTracking(tripId, onPositionUpdate) {
   if (saved) {
     totalKm = saved.totalKm ?? 0;
     totalWaitSeconds = saved.totalWaitSeconds ?? 0;
+    totalPauseSeconds = saved.totalPauseSeconds ?? 0;
     lastLat = saved.lastLat;
     lastLon = saved.lastLon;
     lastRecordedAt = saved.lastRecordedAt;
@@ -173,22 +177,48 @@ export function startTracking(tripId, onPositionUpdate) {
   // Solicitar Wake Lock
   requestWakeLock();
 
-  // Callback de posición
+  // Callback de posición — con filtros robustos anti-outliers
   const handlePosition = (pos) => {
-    const { latitude, longitude, accuracy, altitude, speed, heading } = pos.coords;
+    let { latitude, longitude, accuracy, altitude, speed, heading } = pos.coords;
     const timestamp = pos.timestamp;
 
-    // Filtrar por precisión (ignorar si accuracy > 50m)
-    if (accuracy > 50) return;
+    // --- Fix 1: validar y corregir inversión lat/lng ---
+    // Leaflet espera [lat, lng]; algunos dispositivos o Nominatim devuelven invertido
+    if (Math.abs(latitude) > 90 && Math.abs(longitude) <= 90) {
+      // Claramente invertido: lat fuera de rango, lon dentro
+      const tmp = latitude; latitude = longitude; longitude = tmp;
+    }
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    if (latitude === 0 && longitude === 0) return; // placeholder (0,0) = océano, ignorar
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return;
 
-    // Calcular distancia incremental desde la última posición válida
+    // Filtrar por precisión (ignorar si accuracy > 50m o es null muy malo)
+    if (accuracy != null && accuracy > 50) return;
+
+    // --- Fix 2: filtro de velocidad/outlier (salto imposible) ---
     let incKm = 0;
     if (lastLat != null && lastLon != null) {
       const distM = haversineMeters(lastLat, lastLon, latitude, longitude);
+      const dtSec = lastRecordedAt ? (timestamp - new Date(lastRecordedAt).getTime()) / 1000 : 1;
+      const speedMps = dtSec > 0 ? distM / dtSec : 0;
+      // Si implica > 50 m/s (~180 km/h) es un salto GPS imposible para un camión
+      if (speedMps > 50) {
+        console.warn(`Outlier GPS descartado: ${distM.toFixed(0)}m en ${dtSec.toFixed(1)}s (${(speedMps*3.6).toFixed(0)} km/h)`);
+        return;
+      }
       if (distM >= MIN_DISTANCE_M) {
         incKm = distM / 1000;
         totalKm = Math.round((totalKm + incKm) * 100) / 100;
+      } else {
+        // Movimiento <5m: no sumar km pero igual actualizar posición para el mapa
+        // (evita mancha negra por puntos casi idénticos apilados)
+        if (distM < 0.5) return; // ruido GPS <0.5m: descartar por completo
       }
+    } else if (routePoints.length > 0) {
+      // Si no hay lastLat pero hay ruta (recarga), usar último punto de ruta para distancia
+      const last = routePoints[routePoints.length - 1];
+      const distM = haversineMeters(last.lat, last.lon, latitude, longitude);
+      if (distM < 0.5) return;
     }
 
     // Actualizar último punto conocido
@@ -196,7 +226,7 @@ export function startTracking(tripId, onPositionUpdate) {
     lastLon = longitude;
     lastRecordedAt = new Date(timestamp).toISOString();
 
-    // Guardar punto en ruta (para el mapa)
+    // Guardar punto en ruta (para el mapa) — solo si pasó todos los filtros
     routePoints.push({ lat: latitude, lon: longitude, accuracy, altitude, speed, heading, timestamp: lastRecordedAt });
     if (routePoints.length > 500) routePoints.shift(); // límite memoria
 
@@ -204,13 +234,14 @@ export function startTracking(tripId, onPositionUpdate) {
     saveTrackingState(tripId, {
       totalKm,
       totalWaitSeconds,
+      totalPauseSeconds,
       lastLat,
       lastLon,
       lastRecordedAt,
       routePoints,
     });
 
-    // Notificar a la UI (para actualizar km y mapa)
+    // Notificar a la UI (para actualizar km y mapa) — incluye detección de llegada si el caller provee puntoFin
     onPositionUpdate?.({
       lat: latitude,
       lon: longitude,
@@ -220,6 +251,7 @@ export function startTracking(tripId, onPositionUpdate) {
       heading,
       totalKm,
       totalWaitSeconds,
+      totalPauseSeconds,
       routePoints: [...routePoints], // copia
       incKm,
     });
@@ -321,4 +353,30 @@ export function getLastPosition() {
 export function getTotalKm() {
   const saved = loadTrackingState(state.activeTrip?.id);
   return saved?.totalKm ?? 0;
+}
+
+export function setWaitSeconds(tripId, seconds) {
+  const saved = loadTrackingState(tripId) || { totalKm: 0, routePoints: [] };
+  saveTrackingState(tripId, {
+    totalKm: saved.totalKm ?? 0,
+    totalWaitSeconds: seconds,
+    totalPauseSeconds: saved.totalPauseSeconds ?? 0,
+    lastLat: saved.lastLat ?? null,
+    lastLon: saved.lastLon ?? null,
+    lastRecordedAt: saved.lastRecordedAt ?? null,
+    routePoints: saved.routePoints ?? [],
+  });
+}
+
+export function setPauseSeconds(tripId, seconds) {
+  const saved = loadTrackingState(tripId) || { totalKm: 0, routePoints: [] };
+  saveTrackingState(tripId, {
+    totalKm: saved.totalKm ?? 0,
+    totalWaitSeconds: saved.totalWaitSeconds ?? 0,
+    totalPauseSeconds: seconds,
+    lastLat: saved.lastLat ?? null,
+    lastLon: saved.lastLon ?? null,
+    lastRecordedAt: saved.lastRecordedAt ?? null,
+    routePoints: saved.routePoints ?? [],
+  });
 }

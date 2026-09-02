@@ -18,6 +18,8 @@ export function pad(n) {
   return n.toString().padStart(2, '0');
 }
 export function fmtHM(totalSeconds) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) totalSeconds = 0;
+  totalSeconds = Math.floor(totalSeconds);
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
   const s = Math.floor(totalSeconds % 60);

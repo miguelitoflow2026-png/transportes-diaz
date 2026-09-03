@@ -87,6 +87,7 @@ export function render() {
     scr.querySelectorAll('[data-action="start-trip"]').forEach(el => el.addEventListener('click', () => startNewTripFlow()));
   }
   if (state.driverScreen === 'seleccion') {
+    scr.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', () => goDriverScreen(el.dataset.screen)));
     scr.querySelectorAll('[data-action="change-contrato"]').forEach(el => el.addEventListener('change', (e) => onContractChange(e.target.value)));
     scr.querySelectorAll('[data-action="change-ceco"]').forEach(el => el.addEventListener('change', (e) => { state.newTrip.cecoId = e.target.value; }));
     scr.querySelectorAll('[data-action="change-vehiculo"]').forEach(el => el.addEventListener('change', (e) => { state.newTrip.vehicleId = e.target.value; }));
@@ -137,6 +138,12 @@ export function render() {
     scr.querySelectorAll('[data-action="change-tipo-interurbano"]').forEach(el => el.addEventListener('click', () => changeTripTypeAtSummary('interurbano')));
     scr.querySelectorAll('[data-action="confirmar-viaje"]').forEach(el => el.addEventListener('click', () => confirmarViaje()));
     loadResumenPreview();
+  }
+  if (state.driverScreen === 'contratos') {
+    scr.querySelectorAll('[data-pdf]').forEach(el => el.addEventListener('click', (e) => openPDF(e, el.dataset.pdf)));
+  }
+  if (state.driverScreen === 'perfil') {
+    scr.querySelectorAll('[data-action="logout"]').forEach(el => el.addEventListener('click', () => driverLogout()));
   }
   ensureTicker();
 }
@@ -270,7 +277,7 @@ function screenSeleccion() {
     .map((v) => `<option value="${v.id}" ${nt.vehicleId === v.id ? 'selected' : ''}>${esc(v.plate)} — ${esc(v.model)}</option>`)
     .join('');
   return `
-    <div class="row"><button class="btn-outline btn btn-sm" onclick="goDriverScreen('dashboard')">← Volver</button></div>
+    <div class="row"><button class="btn-outline btn btn-sm" data-screen="dashboard">← Volver</button></div>
     <div class="screen-title">Nuevo viaje</div>
     <div class="screen-sub">Selecciona contrato, centro de costo y vehículo</div>
     <div class="card">
@@ -758,7 +765,7 @@ function screenContratos() {
         <div class="divider"></div>
         <div class="row">
           <span style="font-size:12px;">Centros de costo: ${esc((c.cecos || []).map((x) => x.name).join(', '))}</span>
-          ${c.pdf_path ? `<button class="btn-outline btn btn-sm" onclick="openPDF(event,'${c.pdf_path}')">Ver PDF</button>` : ''}
+          ${c.pdf_path ? `<button class="btn-outline btn btn-sm" data-pdf="${c.pdf_path}">Ver PDF</button>` : ''}
         </div>
       </div>`).join('')}
   `;
@@ -775,7 +782,7 @@ function screenPerfil() {
       <div style="color:var(--text-dim); font-size:13px;">${esc(d.email || '')}</div>
       <div style="color:var(--text-dim); font-size:13px;">${esc(d.rut || '')}</div>
     </div>
-    <button class="btn btn-outline btn-block" onclick="driverLogout()">Cerrar sesión</button>
+    <button class="btn btn-outline btn-block" data-action="logout">Cerrar sesión</button>
   `;
 }
 window.driverLogout = async () => {

@@ -80,6 +80,12 @@ export function render() {
     default: html = screenDashboard();
   }
   scr.innerHTML = html;
+  // Dashboard: data-screen / data-action -> addEventListener (reemplaza inline onclick)
+  if (state.driverScreen === 'dashboard') {
+    scr.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', () => goDriverScreen(el.dataset.screen)));
+    scr.querySelectorAll('[data-action="go-activo"]').forEach(el => el.addEventListener('click', () => goDriverScreen('activo')));
+    scr.querySelectorAll('[data-action="start-trip"]').forEach(el => el.addEventListener('click', () => startNewTripFlow()));
+  }
   if (state.driverScreen === 'activo') {
     // Inicializar mapa Leaflet tras renderizar — doble invalidate para evitar recorte
     setTimeout(() => {
@@ -168,12 +174,12 @@ function screenDashboard() {
           <div><div class="mini-label">TIEMPO ESPERA</div><div class="big-stat">${fmtHM(active.total_wait_seconds || 0)}</div></div>
         </div>
         <div style="height:14px;"></div>
-        <button class="btn btn-primary btn-block" onclick="goDriverScreen('activo')">Continuar viaje</button>
+        <button class="btn btn-primary btn-block" data-action="go-activo">Continuar viaje</button>
       </div>`
     : `
       <div class="card gray" style="text-align:center; padding:28px 18px;">
         <div style="color:var(--text-dim); font-size:13px; margin-bottom:14px;">No tienes ningún viaje en curso</div>
-        <button class="btn btn-primary btn-block" onclick="startNewTripFlow()">${icon('car')} Iniciar viaje</button>
+        <button class="btn btn-primary btn-block" data-action="start-trip">${icon('car')} Iniciar viaje</button>
       </div>`;
 
   const tripsCount = (state.driverStats?.count) ?? '—';
@@ -181,7 +187,7 @@ function screenDashboard() {
     <div class="screen-title">Hola, ${esc(first)}</div>
     <div class="screen-sub">${esc(dateLine)}</div>
     ${activeCard}
-    <div class="card" onclick="goDriverScreen('contratos')" style="cursor:pointer;">
+    <div class="card" data-screen="contratos" style="cursor:pointer;">
       <div class="row">
         <div style="display:flex; align-items:center; gap:10px;">${icon('receipt')}<div>
           <div style="font-weight:600; font-size:14px;">Mis contratos vigentes</div>
@@ -190,7 +196,7 @@ function screenDashboard() {
         <span style="color:var(--text-dim);">›</span>
       </div>
     </div>
-    <div class="card" onclick="goDriverScreen('historial')" style="cursor:pointer;">
+    <div class="card" data-screen="historial" style="cursor:pointer;">
       <div class="row">
         <div style="display:flex; align-items:center; gap:10px;">${icon('history')}<div>
           <div style="font-weight:600; font-size:14px;">Mi historial de viajes</div>

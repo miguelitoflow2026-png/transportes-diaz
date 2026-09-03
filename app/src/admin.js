@@ -157,13 +157,11 @@ async function renderContratos(main) {
     <div class="card">
       <div class="label" style="margin-bottom:14px;">${editing ? 'Editar contrato: ' + esc(editing.name) : 'Nuevo contrato'}</div>
       <div class="form-grid">
-        <div class="field"><label class="label">Empresa cliente</label>
-          <select id="ct_client">${clients.map((cl) => `<option value="${cl.id}" ${editing && editing.client_id === cl.id ? 'selected' : ''}>${esc(cl.name)}</option>`).join('')}</select>
+        <div class="field"><label for="ct_client" class="label">Empresa cliente</label><select id="ct_client" aria-label="Empresa cliente">${clients.map((cl) => `<option value="${cl.id}" ${editing && editing.client_id === cl.id ? 'selected' : ''}>${esc(cl.name)}</option>`).join('')}</select>
         </div>
         <div class="field"><label for="ct_name" class="label">Nombre del contrato</label><input id="ct_name" aria-label="Nombre del contrato" value="${editing ? esc(editing.name) : ''}" placeholder="Ej. Contrato Traslados 2026"></div>
         <div class="field"><label for="ct_vig" class="label">Vigente desde</label><input id="ct_vig" aria-label="Vigente desde" type="date" value="${editing ? esc(editing.vigencia_desde) : new Date().toISOString().slice(0, 10)}"></div>
-        <div class="field"><label class="label">Estado</label>
-          <select id="ct_status">
+        <div class="field"><label for="ct_status" class="label">Estado</label><select id="ct_status" aria-label="Estado contrato">
             <option value="activo" ${editing && editing.status === 'activo' ? 'selected' : ''}>Activo</option>
             <option value="inactivo" ${editing && editing.status === 'inactivo' ? 'selected' : ''}>Inactivo</option>
           </select>
@@ -422,9 +420,9 @@ function filterCardHTML() {
   return `
     <div class="card no-print" style="margin-bottom:18px;">
       <div class="form-grid">
-        <div class="field"><label class="label">Empresa</label><select id="fClient">${clientOptions(clients, f)}</select></div>
-        <div class="field"><label class="label">Contrato</label><select id="fContract">${contractOptions(contracts, f)}</select></div>
-        <div class="field"><label class="label">Conductor</label><select id="fDriver">${driverOptions(drivers, f)}</select></div>
+        <div class="field"><label for="fClient" class="label">Empresa</label><select id="fClient" aria-label="Filtrar por empresa">${clientOptions(clients, f)}</select></div>
+        <div class="field"><label for="fContract" class="label">Contrato</label><select id="fContract" aria-label="Filtrar por contrato">${contractOptions(contracts, f)}</select></div>
+        <div class="field"><label for="fDriver" class="label">Conductor</label><select id="fDriver" aria-label="Filtrar por conductor">${driverOptions(drivers, f)}</select></div>
         <div class="field"><label class="label">Desde</label><input type="date" id="fFrom" value="${esc(f.from || '')}"></div>
         <div class="field"><label class="label">Hasta</label><input type="date" id="fTo" value="${esc(f.to || '')}"></div>
       </div>

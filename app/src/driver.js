@@ -98,6 +98,23 @@ export function render() {
     scr.querySelectorAll('[data-action="go-puntos"]').forEach(el => el.addEventListener('click', () => goToPuntos()));
     scr.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', () => goDriverScreen(el.dataset.screen)));
   }
+  if (state.driverScreen === 'puntos') {
+    scr.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', () => goDriverScreen(el.dataset.screen)));
+    scr.querySelectorAll('[data-action="search-inicio"]').forEach(el => el.addEventListener('input', (e) => onPuntoSearch('inicio', e.target.value)));
+    scr.querySelectorAll('[data-action="search-fin"]').forEach(el => el.addEventListener('input', (e) => onPuntoSearch('fin', e.target.value)));
+    scr.querySelectorAll('[data-action="loc-inicio"]').forEach(el => el.addEventListener('click', () => useMyLocation('inicio')));
+    scr.querySelectorAll('[data-action="loc-fin"]').forEach(el => el.addEventListener('click', () => useMyLocation('fin')));
+    scr.querySelectorAll('[data-action="begin-trip"]').forEach(el => el.addEventListener('click', () => beginTrip()));
+    scr.querySelectorAll('[data-action="begin-trip-sin-puntos"]').forEach(el => el.addEventListener('click', () => beginTripSinPuntos()));
+    // Delegación para suggest-items generados dinámicamente
+    scr.addEventListener('click', (e) => {
+      const item = e.target.closest('.suggest-item');
+      if (item && item.dataset.lat) {
+        const lat = parseFloat(item.dataset.lat), lon = parseFloat(item.dataset.lon), name = item.dataset.name;
+        selectPunto(item.dataset.tipo, lat, lon, name);
+      }
+    });
+  }
   if (state.driverScreen === 'activo') {
     // Inicializar mapa Leaflet tras renderizar — doble invalidate para evitar recorte
     setTimeout(() => {
@@ -330,31 +347,31 @@ function screenPuntosViaje() {
   const tieneInicio = !!nt.puntoInicio;
   const tieneFin = !!nt.puntoFin;
   return `
-    <div class="row"><button class="btn-outline btn btn-sm" onclick="goDriverScreen('tipoViaje')">← Volver</button></div>
+    <div class="row"><button class="btn-outline btn btn-sm" data-screen="tipoViaje">← Volver</button></div>
     <div class="screen-title">Puntos del viaje</div>
     <div class="screen-sub">Indica inicio y destino (opcional, ayuda al seguimiento)</div>
     <div class="card">
       <div class="field">
         <label for="inputInicio" class="label">Punto de inicio</label>
-        <input id="inputInicio" aria-label="Punto de inicio" type="text" placeholder="Ej: Av. Providencia 1200, Santiago" value="${esc(nt.puntoInicio?.display_name || '')}" oninput="onPuntoSearch('inicio', this.value)" autocomplete="off" />
+        <input id="inputInicio" aria-label="Punto de inicio" type="text" placeholder="Ej: Av. Providencia 1200, Santiago" value="${esc(nt.puntoInicio?.display_name || '')}" data-action="search-inicio" autocomplete="off" />
         <div id="suggestInicio" class="suggest-box"></div>
         ${tieneInicio ? `<div style="margin-top:8px; font-size:12px; color:var(--good);">✓ ${esc(nt.puntoInicio.display_name)}</div>` : ''}
       </div>
       <div style="height:14px;"></div>
       <div class="field">
         <label for="inputFin" class="label">Punto de destino</label>
-        <input id="inputFin" aria-label="Punto de destino" type="text" placeholder="Ej: Aeropuerto SCL" value="${esc(nt.puntoFin?.display_name || '')}" oninput="onPuntoSearch('fin', this.value)" autocomplete="off" />
+        <input id="inputFin" aria-label="Punto de destino" type="text" placeholder="Ej: Aeropuerto SCL" value="${esc(nt.puntoFin?.display_name || '')}" data-action="search-fin" autocomplete="off" />
         <div id="suggestFin" class="suggest-box"></div>
         ${tieneFin ? `<div style="margin-top:8px; font-size:12px; color:var(--good);">✓ ${esc(nt.puntoFin.display_name)}</div>` : '<div class="mini-label" style="margin-top:6px;">Si no indicas destino, podrás conducir igual.</div>'}
       </div>
       <div style="height:10px;"></div>
       <div style="display:flex; gap:8px;">
-        <button class="btn btn-outline btn-sm" style="flex:1;" onclick="useMyLocation('inicio')">${icon('nav')} Mi ubicación como inicio</button>
-        <button class="btn btn-outline btn-sm" style="flex:1;" onclick="useMyLocation('fin')">${icon('nav')} Mi ubicación como destino</button>
+        <button class="btn btn-outline btn-sm" style="flex:1;" data-action="loc-inicio">${icon('nav')} Mi ubicación como inicio</button>
+        <button class="btn btn-outline btn-sm" style="flex:1;" data-action="loc-fin">${icon('nav')} Mi ubicación como destino</button>
       </div>
     </div>
-    <button class="btn btn-primary btn-block" onclick="beginTrip()">${icon('car')} Iniciar viaje — En conducción</button>
-    <button class="btn btn-outline btn-block" onclick="beginTripSinPuntos()">Iniciar sin puntos</button>
+    <button class="btn btn-primary btn-block" data-action="begin-trip">${icon('car')} Iniciar viaje — En conducción</button>
+    <button class="btn btn-outline btn-block" data-action="begin-trip-sin-puntos">Iniciar sin puntos</button>
   `;
 }
 
@@ -368,7 +385,7 @@ window.onPuntoSearch = (tipo, query) => {
     const results = await searchNominatim(query);
     if (!box) return;
     if (results.length === 0) { box.innerHTML = '<div class="mini-label" style="padding:8px;">Sin resultados</div>'; return; }
-    box.innerHTML = results.map(r => `<div class="suggest-item" onclick="selectPunto('${tipo}', ${r.lat}, ${r.lon}, '${esc(r.display_name).replace(/'/g, "\\'")}')">${esc(r.display_name)}</div>`).join('');
+    box.innerHTML = results.map(r => `<div class="suggest-item" data-tipo="${tipo}" data-lat="${r.lat}" data-lon="${r.lon}" data-name="${esc(r.display_name)}">${esc(r.display_name)}</div>`).join('');
   }, 400);
 };
 

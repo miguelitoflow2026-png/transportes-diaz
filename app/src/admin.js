@@ -185,7 +185,7 @@ async function renderContratos(main) {
         </div>
         <div class="card gray">
           <div class="label" style="margin-bottom:10px;">Tarifa ‚Äî Interurbano</div>
-          <div class="field"><label class="label">Valor por km (CLP)</label><input id="ctT_iKm" type="number" value="${Number(i.valor_km || 0)}" placeholder="400"></div>
+          <div class="field"><label for="ctT_iKm" class="label">Valor por km (CLP)</label><input id="ctT_iKm" aria-label="Valor por km" type="number" value="${Number(i.valor_km || 0)}" placeholder="400"></div>
           <div style="height:10px;"></div>
           <div class="field"><label class="label">Valor por minuto de espera (CLP)</label><input id="ctT_iMin" type="number" value="${Number(i.valor_min_espera || 0)}" placeholder="150"></div>
         </div>
@@ -338,9 +338,9 @@ async function renderVehiculos(main) {
       </div>
       <div class="card">
         <div class="label" style="margin-bottom:12px;">Nuevo veh√≠culo</div>
-        <div class="field"><label class="label">Patente</label><input id="newVehPlate" placeholder="ABCD-12"></div>
+        <div class="field"><label for="newVehPlate" class="label">Patente</label><input id="newVehPlate" aria-label="Patente vehÌculo" placeholder="ABCD-12"></div>
         <div style="height:10px;"></div>
-        <div class="field"><label class="label">Modelo</label><input id="newVehModel" placeholder="Hyundai H1 2024"></div>
+        <div class="field"><label for="newVehModel" class="label">Modelo</label><input id="newVehModel" aria-label="Modelo vehÌculo" placeholder="Hyundai H1 2024"></div>
         <div style="height:14px;"></div>
         <button class="btn btn-primary btn-block" onclick="addVehicle()">Agregar veh√≠culo</button>
       </div>

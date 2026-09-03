@@ -106,7 +106,6 @@ export function render() {
     scr.querySelectorAll('[data-action="loc-fin"]').forEach(el => el.addEventListener('click', () => useMyLocation('fin')));
     scr.querySelectorAll('[data-action="begin-trip"]').forEach(el => el.addEventListener('click', () => beginTrip()));
     scr.querySelectorAll('[data-action="begin-trip-sin-puntos"]').forEach(el => el.addEventListener('click', () => beginTripSinPuntos()));
-    // Delegación para suggest-items generados dinámicamente
     scr.addEventListener('click', (e) => {
       const item = e.target.closest('.suggest-item');
       if (item && item.dataset.lat) {
@@ -116,6 +115,10 @@ export function render() {
     });
   }
   if (state.driverScreen === 'activo') {
+    scr.querySelectorAll('[data-action="recenter"]').forEach(el => el.addEventListener('click', () => recenterMap()));
+    scr.querySelectorAll('[data-action="navegar"]').forEach(el => el.addEventListener('click', () => openNavegar()));
+    scr.querySelectorAll('[data-action="toggle-espera"]').forEach(el => el.addEventListener('click', () => toggleEspera()));
+    scr.querySelectorAll('[data-action="go-resumen"]').forEach(el => el.addEventListener('click', () => goResumen()));
     // Inicializar mapa Leaflet tras renderizar — doble invalidate para evitar recorte
     setTimeout(() => {
       initLeafletMap();
@@ -552,10 +555,9 @@ function screenActivo() {
   const estadoInfo = ESTADOS[trip.status] || ESTADOS.conduccion;
   const puntoInicioTxt = trip.punto_inicio?.display_name ? esc(trip.punto_inicio.display_name.split(',').slice(0,2).join(',')) : '';
   const puntoFinTxt = trip.punto_fin?.display_name ? esc(trip.punto_fin.display_name.split(',').slice(0,2).join(',')) : '';
-  // Botón único que alterna según estado (simplificado: solo conduccion ↔ espera)
   const actionButtons = trip.status === 'conduccion'
-    ? `<button class="btn btn-wait btn-block" onclick="toggleEspera()">${icon('pause')} Iniciar espera</button>`
-    : `<button class="btn btn-primary btn-block" onclick="toggleEspera()">${icon('car')} Reanudar viaje</button>`;
+    ? `<button class="btn btn-wait btn-block" data-action="toggle-espera">${icon('pause')} Iniciar espera</button>`
+    : `<button class="btn btn-primary btn-block" data-action="toggle-espera">${icon('car')} Reanudar viaje</button>`;
   const metricSecond = `<div class="card gray" style="text-align:center;"><div class="mini-label">TIEMPO ESPERA</div><div class="big-stat" id="wait-display" style="color:var(--wait);">${fmtHM(trip.total_wait_seconds || 0)}</div></div>`;
 
   return `
@@ -567,7 +569,7 @@ function screenActivo() {
       <div id="leaflet-map" style="width:100%; height:100%;"></div>
       <div id="arrival-banner" class="hidden" style="position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;background:#e6f4ea;color:var(--good);border:1px solid #a3d9b1;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.15);">✓ Has llegado al destino</div>
       <div id="route-summary" class="hidden" style="position:absolute;top:10px;right:10px;z-index:1000;background:rgba(255,255,255,0.96);border:1px solid var(--border);padding:6px 10px;border-radius:8px;font-size:11px;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,0.12); max-width:55%; text-align:right;"></div>
-      <button id="btn-recenter" class="btn btn-sm" style="position:absolute; bottom:34px; right:12px; z-index:1000; padding:8px 14px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.22); background:#fff; border:1px solid var(--border);" onclick="recenterMap()" title="Centrar en mi posición">
+      <button id="btn-recenter" class="btn btn-sm" style="position:absolute; bottom:34px; right:12px; z-index:1000; padding:8px 14px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.22); background:#fff; border:1px solid var(--border);" data-action="recenter" title="Centrar en mi posición">
         ${icon('nav')} Centrar
       </button>
     </div>
@@ -586,9 +588,9 @@ function screenActivo() {
       </div>
       ${metricSecond}
     </div>
-    <button class="btn btn-outline btn-block" onclick="openNavegar()">${icon('nav')} Navegar (Google Maps / Waze)</button>
+    <button class="btn btn-outline btn-block" data-action="navegar">${icon('nav')} Navegar (Google Maps / Waze)</button>
     ${actionButtons}
-    <button class="btn btn-danger btn-block" onclick="goResumen()">Finalizar viaje</button>
+    <button class="btn btn-danger btn-block" data-action="go-resumen">Finalizar viaje</button>
   `;
 }
 

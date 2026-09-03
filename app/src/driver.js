@@ -132,7 +132,12 @@ export function render() {
     loadPersistedTracking();
   }
   if (state.driverScreen === 'historial') loadHistorial();
-  if (state.driverScreen === 'resumen') loadResumenPreview();
+  if (state.driverScreen === 'resumen') {
+    scr.querySelectorAll('[data-action="change-tipo-urbano"]').forEach(el => el.addEventListener('click', () => changeTripTypeAtSummary('urbano')));
+    scr.querySelectorAll('[data-action="change-tipo-interurbano"]').forEach(el => el.addEventListener('click', () => changeTripTypeAtSummary('interurbano')));
+    scr.querySelectorAll('[data-action="confirmar-viaje"]').forEach(el => el.addEventListener('click', () => confirmarViaje()));
+    loadResumenPreview();
+  }
   ensureTicker();
 }
 
@@ -614,8 +619,8 @@ function screenResumen() {
     <div class="field">
       <label class="label">Tipo de viaje aplicado</label>
       <div class="toggle-group">
-        <button class="${trip.trip_type === 'urbano' ? 'selected' : ''}" onclick="changeTripTypeAtSummary('urbano')">Urbano</button>
-        <button class="${trip.trip_type === 'interurbano' ? 'selected' : ''}" onclick="changeTripTypeAtSummary('interurbano')">Interurbano</button>
+        <button class="${trip.trip_type === 'urbano' ? 'selected' : ''}" data-action="change-tipo-urbano">Urbano</button>
+        <button class="${trip.trip_type === 'interurbano' ? 'selected' : ''}" data-action="change-tipo-interurbano">Interurbano</button>
       </div>
     </div>
     <div class="grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
@@ -630,7 +635,7 @@ function screenResumen() {
       <label for="tripNotes" class="label">Observaciones (opcional)</label>
       <textarea id="tripNotes" aria-label="Observaciones" placeholder="Nombre del pasajero, motivo del viaje, notas…" maxlength="2000">${esc(trip.notes || '')}</textarea>
     </div>
-    <button class="btn btn-primary btn-block" onclick="confirmarViaje()">${icon('check')} Confirmar y guardar viaje</button>
+    <button class="btn btn-primary btn-block" data-action="confirmar-viaje">${icon('check')} Confirmar y guardar viaje</button>
   `;
 }
 

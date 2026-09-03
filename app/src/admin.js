@@ -166,10 +166,10 @@ async function renderContratos(main) {
             <option value="inactivo" ${editing && editing.status === 'inactivo' ? 'selected' : ''}>Inactivo</option>
           </select>
         </div>
-        <div class="field full"><label class="label">Centros de costo (separados por coma)</label>
+        <div class="field full"><label for="ct_cecos2" class="label">Centros de costo (separados por coma)</label>
           <input id="ct_cecos" value="${editing ? esc((editing.cecos || []).map((x) => x.name).join(', ')) : ''}" placeholder="Ej. Gerencia Operaciones, Gerencia Finanzas">
         </div>
-        <div class="field full"><label class="label">PDF del contrato ${editing && editing.pdf_path ? `(actual: ${esc(editing.pdf_path)})` : ''}</label>
+        <div class="field full"><label for="ct_pdf" class="label">PDF del contrato ${editing && editing.pdf_path ? `(actual: ${esc(editing.pdf_path)})` : ''}</label>
           <input id="ct_pdf" type="file" accept="application/pdf">
         </div>
       </div>
@@ -179,13 +179,13 @@ async function renderContratos(main) {
           <div class="label" style="margin-bottom:10px;">Tarifa — Urbano</div>
           <div class="field"><label for="ctT_uKm" class="label">Valor por km (CLP)</label><input id="ctT_uKm" aria-label="Valor por km" type="number" value="${Number(u.valor_km || 0)}" placeholder="500"></div>
           <div style="height:10px;"></div>
-          <div class="field"><label class="label">Valor por minuto de espera (CLP)</label><input id="ctT_uMin" type="number" value="${Number(u.valor_min_espera || 0)}" placeholder="180"></div>
+          <div class="field"><label for="ctT_uMin" class="label">Valor por minuto de espera (CLP)</label><input id="ctT_uMin" aria-label="Valor por minuto de espera (CLP)" type="number" value="${Number(u.valor_min_espera || 0)}" placeholder="180"></div>
         </div>
         <div class="card gray">
           <div class="label" style="margin-bottom:10px;">Tarifa — Interurbano</div>
           <div class="field"><label for="ctT_iKm" class="label">Valor por km (CLP)</label><input id="ctT_iKm" aria-label="Valor por km" type="number" value="${Number(i.valor_km || 0)}" placeholder="400"></div>
           <div style="height:10px;"></div>
-          <div class="field"><label class="label">Valor por minuto de espera (CLP)</label><input id="ctT_iMin" type="number" value="${Number(i.valor_min_espera || 0)}" placeholder="150"></div>
+          <div class="field"><label for="ctT_iMin" class="label">Valor por minuto de espera (CLP)</label><input id="ctT_iMin" aria-label="Valor por minuto de espera (CLP)" type="number" value="${Number(i.valor_min_espera || 0)}" placeholder="150"></div>
         </div>
       </div>
       <div style="height:8px;"></div>
@@ -282,7 +282,7 @@ async function renderConductores(main) {
         <div style="height:10px;"></div>
         <div class="field"><label for="newDrvEmail" class="label">Email</label><input id="newDrvEmail" aria-label="Email conductor" type="email" placeholder="correo@transportesdiaz.cl"></div>
         <div style="height:10px;"></div>
-        <div class="field"><label class="label">Clave temporal (mín. 8 caracteres)</label><input id="newDrvPass" type="password" placeholder="Se entrega una vez al conductor"></div>
+        <div class="field"><label for="newDrvPass" class="label">Clave temporal (mín. 8 caracteres)</label><input id="newDrvPass" aria-label="Clave temporal (mín. 8 caracteres)" type="password" placeholder="Se entrega una vez al conductor"></div>
         <div style="height:14px;"></div>
         <button class="btn btn-primary btn-block" onclick="addDriver()">Agregar conductor</button>
       </div>
@@ -423,8 +423,8 @@ function filterCardHTML() {
         <div class="field"><label for="fClient" class="label">Empresa</label><select id="fClient" aria-label="Filtrar por empresa">${clientOptions(clients, f)}</select></div>
         <div class="field"><label for="fContract" class="label">Contrato</label><select id="fContract" aria-label="Filtrar por contrato">${contractOptions(contracts, f)}</select></div>
         <div class="field"><label for="fDriver" class="label">Conductor</label><select id="fDriver" aria-label="Filtrar por conductor">${driverOptions(drivers, f)}</select></div>
-        <div class="field"><label class="label">Desde</label><input type="date" id="fFrom" value="${esc(f.from || '')}"></div>
-        <div class="field"><label class="label">Hasta</label><input type="date" id="fTo" value="${esc(f.to || '')}"></div>
+        <div class="field"><label for="fFrom" class="label">Desde</label><input type="date" id="fFrom" aria-label="Filtrar desde" value="${esc(f.from || '')}"></div>
+        <div class="field"><label for="fTo" class="label">Hasta</label><input type="date" id="fTo" aria-label="Filtrar hasta" value="${esc(f.to || '')}"></div>
       </div>
     </div>`;
 }

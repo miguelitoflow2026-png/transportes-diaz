@@ -80,7 +80,46 @@ export function render() {
     default: html = screenDashboard();
   }
   scr.innerHTML = html;
+  // Dashboard: data-screen / data-action -> addEventListener (reemplaza inline onclick)
+  if (state.driverScreen === 'dashboard') {
+    scr.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', () => goDriverScreen(el.dataset.screen)));
+    scr.querySelectorAll('[data-action="go-activo"]').forEach(el => el.addEventListener('click', () => goDriverScreen('activo')));
+    scr.querySelectorAll('[data-action="start-trip"]').forEach(el => el.addEventListener('click', () => startNewTripFlow()));
+  }
+  if (state.driverScreen === 'seleccion') {
+    scr.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', () => goDriverScreen(el.dataset.screen)));
+    scr.querySelectorAll('[data-action="change-contrato"]').forEach(el => el.addEventListener('change', (e) => onContractChange(e.target.value)));
+    scr.querySelectorAll('[data-action="change-ceco"]').forEach(el => el.addEventListener('change', (e) => { state.newTrip.cecoId = e.target.value; }));
+    scr.querySelectorAll('[data-action="change-vehiculo"]').forEach(el => el.addEventListener('change', (e) => { state.newTrip.vehicleId = e.target.value; }));
+    scr.querySelectorAll('[data-action="confirm-seleccion"]').forEach(el => el.addEventListener('click', () => confirmSeleccion()));
+  }
+  if (state.driverScreen === 'tipoViaje') {
+    scr.querySelectorAll('[data-action="set-tipo-urbano"]').forEach(el => el.addEventListener('click', () => setTripType('urbano')));
+    scr.querySelectorAll('[data-action="set-tipo-interurbano"]').forEach(el => el.addEventListener('click', () => setTripType('interurbano')));
+    scr.querySelectorAll('[data-action="go-puntos"]').forEach(el => el.addEventListener('click', () => goToPuntos()));
+    scr.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', () => goDriverScreen(el.dataset.screen)));
+  }
+  if (state.driverScreen === 'puntos') {
+    scr.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', () => goDriverScreen(el.dataset.screen)));
+    scr.querySelectorAll('[data-action="search-inicio"]').forEach(el => el.addEventListener('input', (e) => onPuntoSearch('inicio', e.target.value)));
+    scr.querySelectorAll('[data-action="search-fin"]').forEach(el => el.addEventListener('input', (e) => onPuntoSearch('fin', e.target.value)));
+    scr.querySelectorAll('[data-action="loc-inicio"]').forEach(el => el.addEventListener('click', () => useMyLocation('inicio')));
+    scr.querySelectorAll('[data-action="loc-fin"]').forEach(el => el.addEventListener('click', () => useMyLocation('fin')));
+    scr.querySelectorAll('[data-action="begin-trip"]').forEach(el => el.addEventListener('click', () => beginTrip()));
+    scr.querySelectorAll('[data-action="begin-trip-sin-puntos"]').forEach(el => el.addEventListener('click', () => beginTripSinPuntos()));
+    scr.addEventListener('click', (e) => {
+      const item = e.target.closest('.suggest-item');
+      if (item && item.dataset.lat) {
+        const lat = parseFloat(item.dataset.lat), lon = parseFloat(item.dataset.lon), name = item.dataset.name;
+        selectPunto(item.dataset.tipo, lat, lon, name);
+      }
+    });
+  }
   if (state.driverScreen === 'activo') {
+    scr.querySelectorAll('[data-action="recenter"]').forEach(el => el.addEventListener('click', () => recenterMap()));
+    scr.querySelectorAll('[data-action="navegar"]').forEach(el => el.addEventListener('click', () => openNavegar()));
+    scr.querySelectorAll('[data-action="toggle-espera"]').forEach(el => el.addEventListener('click', () => toggleEspera()));
+    scr.querySelectorAll('[data-action="go-resumen"]').forEach(el => el.addEventListener('click', () => goResumen()));
     // Inicializar mapa Leaflet tras renderizar — doble invalidate para evitar recorte
     setTimeout(() => {
       initLeafletMap();
@@ -94,7 +133,18 @@ export function render() {
     loadPersistedTracking();
   }
   if (state.driverScreen === 'historial') loadHistorial();
-  if (state.driverScreen === 'resumen') loadResumenPreview();
+  if (state.driverScreen === 'resumen') {
+    scr.querySelectorAll('[data-action="change-tipo-urbano"]').forEach(el => el.addEventListener('click', () => changeTripTypeAtSummary('urbano')));
+    scr.querySelectorAll('[data-action="change-tipo-interurbano"]').forEach(el => el.addEventListener('click', () => changeTripTypeAtSummary('interurbano')));
+    scr.querySelectorAll('[data-action="confirmar-viaje"]').forEach(el => el.addEventListener('click', () => confirmarViaje()));
+    loadResumenPreview();
+  }
+  if (state.driverScreen === 'contratos') {
+    scr.querySelectorAll('[data-pdf]').forEach(el => el.addEventListener('click', (e) => openPDF(e, el.dataset.pdf)));
+  }
+  if (state.driverScreen === 'perfil') {
+    scr.querySelectorAll('[data-action="logout"]').forEach(el => el.addEventListener('click', () => driverLogout()));
+  }
   ensureTicker();
 }
 
@@ -107,8 +157,11 @@ function buildNav() {
     ['perfil', 'Perfil', 'user'],
   ];
   nav.innerHTML = labels
-    .map(([s, label, ic]) => `<button class="${state.driverScreen === s ? 'active' : ''}" onclick="goDriverScreen('${s}')" aria-label="${label}" aria-current="${state.driverScreen === s ? 'page' : 'false'}">${icon(ic)}${label}</button>`)
+    .map(([s, label, ic]) => `<button class="${state.driverScreen === s ? 'active' : ''}" data-screen="${s}" aria-label="${label}" aria-current="${state.driverScreen === s ? 'page' : 'false'}">${icon(ic)}${label}</button>`)
     .join('');
+  nav.querySelectorAll('button[data-screen]').forEach(btn => {
+    btn.addEventListener('click', () => goDriverScreen(btn.dataset.screen));
+  });
 }
 
 export function goDriverScreen(s) {
@@ -165,12 +218,12 @@ function screenDashboard() {
           <div><div class="mini-label">TIEMPO ESPERA</div><div class="big-stat">${fmtHM(active.total_wait_seconds || 0)}</div></div>
         </div>
         <div style="height:14px;"></div>
-        <button class="btn btn-primary btn-block" onclick="goDriverScreen('activo')">Continuar viaje</button>
+        <button class="btn btn-primary btn-block" data-action="go-activo">Continuar viaje</button>
       </div>`
     : `
       <div class="card gray" style="text-align:center; padding:28px 18px;">
         <div style="color:var(--text-dim); font-size:13px; margin-bottom:14px;">No tienes ningún viaje en curso</div>
-        <button class="btn btn-primary btn-block" onclick="startNewTripFlow()">${icon('car')} Iniciar viaje</button>
+        <button class="btn btn-primary btn-block" data-action="start-trip">${icon('car')} Iniciar viaje</button>
       </div>`;
 
   const tripsCount = (state.driverStats?.count) ?? '—';
@@ -178,7 +231,7 @@ function screenDashboard() {
     <div class="screen-title">Hola, ${esc(first)}</div>
     <div class="screen-sub">${esc(dateLine)}</div>
     ${activeCard}
-    <div class="card" onclick="goDriverScreen('contratos')" style="cursor:pointer;">
+    <div class="card" data-screen="contratos" style="cursor:pointer;">
       <div class="row">
         <div style="display:flex; align-items:center; gap:10px;">${icon('receipt')}<div>
           <div style="font-weight:600; font-size:14px;">Mis contratos vigentes</div>
@@ -187,7 +240,7 @@ function screenDashboard() {
         <span style="color:var(--text-dim);">›</span>
       </div>
     </div>
-    <div class="card" onclick="goDriverScreen('historial')" style="cursor:pointer;">
+    <div class="card" data-screen="historial" style="cursor:pointer;">
       <div class="row">
         <div style="display:flex; align-items:center; gap:10px;">${icon('history')}<div>
           <div style="font-weight:600; font-size:14px;">Mi historial de viajes</div>
@@ -224,13 +277,13 @@ function screenSeleccion() {
     .map((v) => `<option value="${v.id}" ${nt.vehicleId === v.id ? 'selected' : ''}>${esc(v.plate)} — ${esc(v.model)}</option>`)
     .join('');
   return `
-    <div class="row"><button class="btn-outline btn btn-sm" onclick="goDriverScreen('dashboard')">← Volver</button></div>
+    <div class="row"><button class="btn-outline btn btn-sm" data-screen="dashboard">← Volver</button></div>
     <div class="screen-title">Nuevo viaje</div>
     <div class="screen-sub">Selecciona contrato, centro de costo y vehículo</div>
     <div class="card">
       <div class="field">
         <label for="selContrato" class="label">Contrato / Empresa cliente</label>
-        <select id="selContrato" aria-label="Contrato / Empresa cliente" onchange="onContractChange(this.value)">
+        <select id="selContrato" aria-label="Contrato / Empresa cliente" data-action="change-contrato">
           <option value="">Selecciona un contrato…</option>
           ${contractOptions}
         </select>
@@ -238,7 +291,7 @@ function screenSeleccion() {
       <div style="height:12px;"></div>
       <div class="field">
         <label for="selCeco" class="label">Centro de costo (CECO)</label>
-        <select id="selCeco" aria-label="Centro de costo" ${!contract ? 'disabled' : ''} onchange="state.newTrip.cecoId=this.value">
+        <select id="selCeco" aria-label="Centro de costo" ${!contract ? 'disabled' : ''} data-action="change-ceco">
           <option value="">${contract ? 'Selecciona un CECO…' : 'Primero elige un contrato'}</option>
           ${cecoOptions}
         </select>
@@ -246,13 +299,13 @@ function screenSeleccion() {
       <div style="height:12px;"></div>
       <div class="field">
         <label for="selVehiculo" class="label">Vehículo a usar</label>
-        <select id="selVehiculo" aria-label="Vehículo a usar" onchange="state.newTrip.vehicleId=this.value">
+        <select id="selVehiculo" aria-label="Vehículo a usar" data-action="change-vehiculo">
           <option value="">Selecciona un vehículo…</option>
           ${vehicleOptions}
         </select>
       </div>
     </div>
-    <button class="btn btn-primary btn-block" onclick="confirmSeleccion()">Continuar</button>
+    <button class="btn btn-primary btn-block" data-action="confirm-seleccion">Continuar</button>
   `;
 }
 window.onContractChange = (val) => {
@@ -277,7 +330,7 @@ function screenTipoViaje() {
   const ceco = cecoOf(contract, nt.cecoId);
   const veh = vehicleById(nt.vehicleId);
   return `
-    <div class="row"><button class="btn-outline btn btn-sm" onclick="goDriverScreen('seleccion')">← Volver</button></div>
+    <div class="row"><button class="btn-outline btn btn-sm" data-screen="seleccion">← Volver</button></div>
     <div class="screen-title">Tipo de viaje</div>
     <div class="screen-sub">${esc(contract.name || '')}</div>
     <div class="card">
@@ -285,10 +338,10 @@ function screenTipoViaje() {
       <div class="row"><span class="mini-label">VEHÍCULO</span><span style="font-size:12px;">${esc(veh?.plate || '')} · ${esc(veh?.model || '')}</span></div>
     </div>
     <div class="toggle-group">
-      <button class="${nt.tripType === 'urbano' ? 'selected' : ''}" onclick="setTripType('urbano')">Urbano</button>
-      <button class="${nt.tripType === 'interurbano' ? 'selected' : ''}" onclick="setTripType('interurbano')">Interurbano</button>
+      <button class="${nt.tripType === 'urbano' ? 'selected' : ''}" data-action="set-tipo-urbano">Urbano</button>
+      <button class="${nt.tripType === 'interurbano' ? 'selected' : ''}" data-action="set-tipo-interurbano">Interurbano</button>
     </div>
-    <button class="btn btn-primary btn-block" onclick="goToPuntos()">${icon('car')} Continuar — Puntos del viaje</button>
+    <button class="btn btn-primary btn-block" data-action="go-puntos">${icon('car')} Continuar — Puntos del viaje</button>
   `;
 }
 window.setTripType = (t) => {
@@ -309,31 +362,31 @@ function screenPuntosViaje() {
   const tieneInicio = !!nt.puntoInicio;
   const tieneFin = !!nt.puntoFin;
   return `
-    <div class="row"><button class="btn-outline btn btn-sm" onclick="goDriverScreen('tipoViaje')">← Volver</button></div>
+    <div class="row"><button class="btn-outline btn btn-sm" data-screen="tipoViaje">← Volver</button></div>
     <div class="screen-title">Puntos del viaje</div>
     <div class="screen-sub">Indica inicio y destino (opcional, ayuda al seguimiento)</div>
     <div class="card">
       <div class="field">
         <label for="inputInicio" class="label">Punto de inicio</label>
-        <input id="inputInicio" aria-label="Punto de inicio" type="text" placeholder="Ej: Av. Providencia 1200, Santiago" value="${esc(nt.puntoInicio?.display_name || '')}" oninput="onPuntoSearch('inicio', this.value)" autocomplete="off" />
+        <input id="inputInicio" aria-label="Punto de inicio" type="text" placeholder="Ej: Av. Providencia 1200, Santiago" value="${esc(nt.puntoInicio?.display_name || '')}" data-action="search-inicio" autocomplete="off" />
         <div id="suggestInicio" class="suggest-box"></div>
         ${tieneInicio ? `<div style="margin-top:8px; font-size:12px; color:var(--good);">✓ ${esc(nt.puntoInicio.display_name)}</div>` : ''}
       </div>
       <div style="height:14px;"></div>
       <div class="field">
         <label for="inputFin" class="label">Punto de destino</label>
-        <input id="inputFin" aria-label="Punto de destino" type="text" placeholder="Ej: Aeropuerto SCL" value="${esc(nt.puntoFin?.display_name || '')}" oninput="onPuntoSearch('fin', this.value)" autocomplete="off" />
+        <input id="inputFin" aria-label="Punto de destino" type="text" placeholder="Ej: Aeropuerto SCL" value="${esc(nt.puntoFin?.display_name || '')}" data-action="search-fin" autocomplete="off" />
         <div id="suggestFin" class="suggest-box"></div>
         ${tieneFin ? `<div style="margin-top:8px; font-size:12px; color:var(--good);">✓ ${esc(nt.puntoFin.display_name)}</div>` : '<div class="mini-label" style="margin-top:6px;">Si no indicas destino, podrás conducir igual.</div>'}
       </div>
       <div style="height:10px;"></div>
       <div style="display:flex; gap:8px;">
-        <button class="btn btn-outline btn-sm" style="flex:1;" onclick="useMyLocation('inicio')">${icon('nav')} Mi ubicación como inicio</button>
-        <button class="btn btn-outline btn-sm" style="flex:1;" onclick="useMyLocation('fin')">${icon('nav')} Mi ubicación como destino</button>
+        <button class="btn btn-outline btn-sm" style="flex:1;" data-action="loc-inicio">${icon('nav')} Mi ubicación como inicio</button>
+        <button class="btn btn-outline btn-sm" style="flex:1;" data-action="loc-fin">${icon('nav')} Mi ubicación como destino</button>
       </div>
     </div>
-    <button class="btn btn-primary btn-block" onclick="beginTrip()">${icon('car')} Iniciar viaje — En conducción</button>
-    <button class="btn btn-outline btn-block" onclick="beginTripSinPuntos()">Iniciar sin puntos</button>
+    <button class="btn btn-primary btn-block" data-action="begin-trip">${icon('car')} Iniciar viaje — En conducción</button>
+    <button class="btn btn-outline btn-block" data-action="begin-trip-sin-puntos">Iniciar sin puntos</button>
   `;
 }
 
@@ -347,7 +400,7 @@ window.onPuntoSearch = (tipo, query) => {
     const results = await searchNominatim(query);
     if (!box) return;
     if (results.length === 0) { box.innerHTML = '<div class="mini-label" style="padding:8px;">Sin resultados</div>'; return; }
-    box.innerHTML = results.map(r => `<div class="suggest-item" onclick="selectPunto('${tipo}', ${r.lat}, ${r.lon}, '${esc(r.display_name).replace(/'/g, "\\'")}')">${esc(r.display_name)}</div>`).join('');
+    box.innerHTML = results.map(r => `<div class="suggest-item" data-tipo="${tipo}" data-lat="${r.lat}" data-lon="${r.lon}" data-name="${esc(r.display_name)}">${esc(r.display_name)}</div>`).join('');
   }, 400);
 };
 
@@ -514,10 +567,9 @@ function screenActivo() {
   const estadoInfo = ESTADOS[trip.status] || ESTADOS.conduccion;
   const puntoInicioTxt = trip.punto_inicio?.display_name ? esc(trip.punto_inicio.display_name.split(',').slice(0,2).join(',')) : '';
   const puntoFinTxt = trip.punto_fin?.display_name ? esc(trip.punto_fin.display_name.split(',').slice(0,2).join(',')) : '';
-  // Botón único que alterna según estado (simplificado: solo conduccion ↔ espera)
   const actionButtons = trip.status === 'conduccion'
-    ? `<button class="btn btn-wait btn-block" onclick="toggleEspera()">${icon('pause')} Iniciar espera</button>`
-    : `<button class="btn btn-primary btn-block" onclick="toggleEspera()">${icon('car')} Reanudar viaje</button>`;
+    ? `<button class="btn btn-wait btn-block" data-action="toggle-espera">${icon('pause')} Iniciar espera</button>`
+    : `<button class="btn btn-primary btn-block" data-action="toggle-espera">${icon('car')} Reanudar viaje</button>`;
   const metricSecond = `<div class="card gray" style="text-align:center;"><div class="mini-label">TIEMPO ESPERA</div><div class="big-stat" id="wait-display" style="color:var(--wait);">${fmtHM(trip.total_wait_seconds || 0)}</div></div>`;
 
   return `
@@ -529,7 +581,7 @@ function screenActivo() {
       <div id="leaflet-map" style="width:100%; height:100%;"></div>
       <div id="arrival-banner" class="hidden" style="position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;background:#e6f4ea;color:var(--good);border:1px solid #a3d9b1;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.15);">✓ Has llegado al destino</div>
       <div id="route-summary" class="hidden" style="position:absolute;top:10px;right:10px;z-index:1000;background:rgba(255,255,255,0.96);border:1px solid var(--border);padding:6px 10px;border-radius:8px;font-size:11px;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,0.12); max-width:55%; text-align:right;"></div>
-      <button id="btn-recenter" class="btn btn-sm" style="position:absolute; bottom:34px; right:12px; z-index:1000; padding:8px 14px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.22); background:#fff; border:1px solid var(--border);" onclick="recenterMap()" title="Centrar en mi posición">
+      <button id="btn-recenter" class="btn btn-sm" style="position:absolute; bottom:34px; right:12px; z-index:1000; padding:8px 14px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.22); background:#fff; border:1px solid var(--border);" data-action="recenter" title="Centrar en mi posición">
         ${icon('nav')} Centrar
       </button>
     </div>
@@ -548,9 +600,9 @@ function screenActivo() {
       </div>
       ${metricSecond}
     </div>
-    <button class="btn btn-outline btn-block" onclick="openNavegar()">${icon('nav')} Navegar (Google Maps / Waze)</button>
+    <button class="btn btn-outline btn-block" data-action="navegar">${icon('nav')} Navegar (Google Maps / Waze)</button>
     ${actionButtons}
-    <button class="btn btn-danger btn-block" onclick="goResumen()">Finalizar viaje</button>
+    <button class="btn btn-danger btn-block" data-action="go-resumen">Finalizar viaje</button>
   `;
 }
 
@@ -574,8 +626,8 @@ function screenResumen() {
     <div class="field">
       <label class="label">Tipo de viaje aplicado</label>
       <div class="toggle-group">
-        <button class="${trip.trip_type === 'urbano' ? 'selected' : ''}" onclick="changeTripTypeAtSummary('urbano')">Urbano</button>
-        <button class="${trip.trip_type === 'interurbano' ? 'selected' : ''}" onclick="changeTripTypeAtSummary('interurbano')">Interurbano</button>
+        <button class="${trip.trip_type === 'urbano' ? 'selected' : ''}" data-action="change-tipo-urbano">Urbano</button>
+        <button class="${trip.trip_type === 'interurbano' ? 'selected' : ''}" data-action="change-tipo-interurbano">Interurbano</button>
       </div>
     </div>
     <div class="grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
@@ -590,7 +642,7 @@ function screenResumen() {
       <label for="tripNotes" class="label">Observaciones (opcional)</label>
       <textarea id="tripNotes" aria-label="Observaciones" placeholder="Nombre del pasajero, motivo del viaje, notas…" maxlength="2000">${esc(trip.notes || '')}</textarea>
     </div>
-    <button class="btn btn-primary btn-block" onclick="confirmarViaje()">${icon('check')} Confirmar y guardar viaje</button>
+    <button class="btn btn-primary btn-block" data-action="confirmar-viaje">${icon('check')} Confirmar y guardar viaje</button>
   `;
 }
 
@@ -713,7 +765,7 @@ function screenContratos() {
         <div class="divider"></div>
         <div class="row">
           <span style="font-size:12px;">Centros de costo: ${esc((c.cecos || []).map((x) => x.name).join(', '))}</span>
-          ${c.pdf_path ? `<button class="btn-outline btn btn-sm" onclick="openPDF(event,'${c.pdf_path}')">Ver PDF</button>` : ''}
+          ${c.pdf_path ? `<button class="btn-outline btn btn-sm" data-pdf="${c.pdf_path}">Ver PDF</button>` : ''}
         </div>
       </div>`).join('')}
   `;
@@ -730,7 +782,7 @@ function screenPerfil() {
       <div style="color:var(--text-dim); font-size:13px;">${esc(d.email || '')}</div>
       <div style="color:var(--text-dim); font-size:13px;">${esc(d.rut || '')}</div>
     </div>
-    <button class="btn btn-outline btn-block" onclick="driverLogout()">Cerrar sesión</button>
+    <button class="btn btn-outline btn-block" data-action="logout">Cerrar sesión</button>
   `;
 }
 window.driverLogout = async () => {

@@ -157,21 +157,21 @@ async function renderContratos(main) {
     <div class="card">
       <div class="label" style="margin-bottom:14px;">${editing ? 'Editar contrato: ' + esc(editing.name) : 'Nuevo contrato'}</div>
       <div class="form-grid">
-        <div class="field"><label class="label">Empresa cliente</span>
+        <div class="field"><label class="label">Empresa cliente</label>
           <select id="ct_client">${clients.map((cl) => `<option value="${cl.id}" ${editing && editing.client_id === cl.id ? 'selected' : ''}>${esc(cl.name)}</option>`).join('')}</select>
         </div>
         <div class="field"><label for="ct_name" class="label">Nombre del contrato</label><input id="ct_name" aria-label="Nombre del contrato" value="${editing ? esc(editing.name) : ''}" placeholder="Ej. Contrato Traslados 2026"></div>
         <div class="field"><label for="ct_vig" class="label">Vigente desde</label><input id="ct_vig" aria-label="Vigente desde" type="date" value="${editing ? esc(editing.vigencia_desde) : new Date().toISOString().slice(0, 10)}"></div>
-        <div class="field"><label class="label">Estado</span>
+        <div class="field"><label class="label">Estado</label>
           <select id="ct_status">
             <option value="activo" ${editing && editing.status === 'activo' ? 'selected' : ''}>Activo</option>
             <option value="inactivo" ${editing && editing.status === 'inactivo' ? 'selected' : ''}>Inactivo</option>
           </select>
         </div>
-        <div class="field full"><label class="label">Centros de costo (separados por coma)</span>
+        <div class="field full"><label class="label">Centros de costo (separados por coma)</label>
           <input id="ct_cecos" value="${editing ? esc((editing.cecos || []).map((x) => x.name).join(', ')) : ''}" placeholder="Ej. Gerencia Operaciones, Gerencia Finanzas">
         </div>
-        <div class="field full"><label class="label">PDF del contrato ${editing && editing.pdf_path ? `(actual: ${esc(editing.pdf_path)})` : ''}</span>
+        <div class="field full"><label class="label">PDF del contrato ${editing && editing.pdf_path ? `(actual: ${esc(editing.pdf_path)})` : ''}</label>
           <input id="ct_pdf" type="file" accept="application/pdf">
         </div>
       </div>
@@ -278,11 +278,11 @@ async function renderConductores(main) {
       </div>
       <div class="card">
         <div class="label" style="margin-bottom:12px;">Nuevo conductor</div>
-        <div class="field"><label class="label">Nombre completo</label><input id="newDrvName" placeholder="Nombre y apellido"></div>
+        <div class="field"><label for="newDrvName" class="label">Nombre completo</label><input id="newDrvName" aria-label="Nombre completo" placeholder="Nombre y apellido"></div>
         <div style="height:10px;"></div>
-        <div class="field"><label class="label">RUT</label><input id="newDrvRut" placeholder="12.345.678-9"></div>
+        <div class="field"><label for="newDrvRut" class="label">RUT</label><input id="newDrvRut" aria-label="RUT conductor" placeholder="12.345.678-9"></div>
         <div style="height:10px;"></div>
-        <div class="field"><label class="label">Email</label><input id="newDrvEmail" type="email" placeholder="correo@transportesdiaz.cl"></div>
+        <div class="field"><label for="newDrvEmail" class="label">Email</label><input id="newDrvEmail" aria-label="Email conductor" type="email" placeholder="correo@transportesdiaz.cl"></div>
         <div style="height:10px;"></div>
         <div class="field"><label class="label">Clave temporal (mín. 8 caracteres)</label><input id="newDrvPass" type="password" placeholder="Se entrega una vez al conductor"></div>
         <div style="height:14px;"></div>

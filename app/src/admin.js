@@ -80,9 +80,9 @@ async function renderClientes(main) {
       </div>
       <div class="card">
         <div class="label" style="margin-bottom:12px;">Nueva empresa cliente</div>
-        <div class="field"><label class="label">Nombre</label><input id="newClientName" placeholder="Ej. Minera Sur S.A."></div>
+        <div class="field"><label for="newClientName" class="label">Nombre</label><input id="newClientName" aria-label="Nombre empresa" placeholder="Ej. Minera Sur S.A."></div>
         <div style="height:10px;"></div>
-        <div class="field"><label class="label">RUT</label><input id="newClientRut" placeholder="76.xxx.xxx-x"></div>
+        <div class="field"><label for="newClientRut" class="label">RUT</label><input id="newClientRut" aria-label="RUT empresa" placeholder="76.xxx.xxx-x"></div>
         <div style="height:14px;"></div>
         <button class="btn btn-primary btn-block" data-add>Agregar empresa</button>
       </div>
@@ -160,8 +160,8 @@ async function renderContratos(main) {
         <div class="field"><label class="label">Empresa cliente</span>
           <select id="ct_client">${clients.map((cl) => `<option value="${cl.id}" ${editing && editing.client_id === cl.id ? 'selected' : ''}>${esc(cl.name)}</option>`).join('')}</select>
         </div>
-        <div class="field"><label class="label">Nombre del contrato</label><input id="ct_name" value="${editing ? esc(editing.name) : ''}" placeholder="Ej. Contrato Traslados 2026"></div>
-        <div class="field"><label class="label">Vigente desde</label><input id="ct_vig" type="date" value="${editing ? esc(editing.vigencia_desde) : new Date().toISOString().slice(0, 10)}"></div>
+        <div class="field"><label for="ct_name" class="label">Nombre del contrato</label><input id="ct_name" aria-label="Nombre del contrato" value="${editing ? esc(editing.name) : ''}" placeholder="Ej. Contrato Traslados 2026"></div>
+        <div class="field"><label for="ct_vig" class="label">Vigente desde</label><input id="ct_vig" aria-label="Vigente desde" type="date" value="${editing ? esc(editing.vigencia_desde) : new Date().toISOString().slice(0, 10)}"></div>
         <div class="field"><label class="label">Estado</span>
           <select id="ct_status">
             <option value="activo" ${editing && editing.status === 'activo' ? 'selected' : ''}>Activo</option>
@@ -179,7 +179,7 @@ async function renderContratos(main) {
       <div class="grid-2">
         <div class="card gray">
           <div class="label" style="margin-bottom:10px;">Tarifa — Urbano</div>
-          <div class="field"><label class="label">Valor por km (CLP)</label><input id="ctT_uKm" type="number" value="${Number(u.valor_km || 0)}" placeholder="500"></div>
+          <div class="field"><label for="ctT_uKm" class="label">Valor por km (CLP)</label><input id="ctT_uKm" aria-label="Valor por km" type="number" value="${Number(u.valor_km || 0)}" placeholder="500"></div>
           <div style="height:10px;"></div>
           <div class="field"><label class="label">Valor por minuto de espera (CLP)</label><input id="ctT_uMin" type="number" value="${Number(u.valor_min_espera || 0)}" placeholder="180"></div>
         </div>

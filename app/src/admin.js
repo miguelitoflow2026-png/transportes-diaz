@@ -80,9 +80,9 @@ async function renderClientes(main) {
       </div>
       <div class="card">
         <div class="label" style="margin-bottom:12px;">Nueva empresa cliente</div>
-        <div class="field"><span class="label">Nombre</span><input id="newClientName" placeholder="Ej. Minera Sur S.A."></div>
+        <div class="field"><label class="label">Nombre</label><input id="newClientName" placeholder="Ej. Minera Sur S.A."></div>
         <div style="height:10px;"></div>
-        <div class="field"><span class="label">RUT</span><input id="newClientRut" placeholder="76.xxx.xxx-x"></div>
+        <div class="field"><label class="label">RUT</label><input id="newClientRut" placeholder="76.xxx.xxx-x"></div>
         <div style="height:14px;"></div>
         <button class="btn btn-primary btn-block" data-add>Agregar empresa</button>
       </div>
@@ -157,21 +157,21 @@ async function renderContratos(main) {
     <div class="card">
       <div class="label" style="margin-bottom:14px;">${editing ? 'Editar contrato: ' + esc(editing.name) : 'Nuevo contrato'}</div>
       <div class="form-grid">
-        <div class="field"><span class="label">Empresa cliente</span>
+        <div class="field"><label class="label">Empresa cliente</span>
           <select id="ct_client">${clients.map((cl) => `<option value="${cl.id}" ${editing && editing.client_id === cl.id ? 'selected' : ''}>${esc(cl.name)}</option>`).join('')}</select>
         </div>
-        <div class="field"><span class="label">Nombre del contrato</span><input id="ct_name" value="${editing ? esc(editing.name) : ''}" placeholder="Ej. Contrato Traslados 2026"></div>
-        <div class="field"><span class="label">Vigente desde</span><input id="ct_vig" type="date" value="${editing ? esc(editing.vigencia_desde) : new Date().toISOString().slice(0, 10)}"></div>
-        <div class="field"><span class="label">Estado</span>
+        <div class="field"><label class="label">Nombre del contrato</label><input id="ct_name" value="${editing ? esc(editing.name) : ''}" placeholder="Ej. Contrato Traslados 2026"></div>
+        <div class="field"><label class="label">Vigente desde</label><input id="ct_vig" type="date" value="${editing ? esc(editing.vigencia_desde) : new Date().toISOString().slice(0, 10)}"></div>
+        <div class="field"><label class="label">Estado</span>
           <select id="ct_status">
             <option value="activo" ${editing && editing.status === 'activo' ? 'selected' : ''}>Activo</option>
             <option value="inactivo" ${editing && editing.status === 'inactivo' ? 'selected' : ''}>Inactivo</option>
           </select>
         </div>
-        <div class="field full"><span class="label">Centros de costo (separados por coma)</span>
+        <div class="field full"><label class="label">Centros de costo (separados por coma)</span>
           <input id="ct_cecos" value="${editing ? esc((editing.cecos || []).map((x) => x.name).join(', ')) : ''}" placeholder="Ej. Gerencia Operaciones, Gerencia Finanzas">
         </div>
-        <div class="field full"><span class="label">PDF del contrato ${editing && editing.pdf_path ? `(actual: ${esc(editing.pdf_path)})` : ''}</span>
+        <div class="field full"><label class="label">PDF del contrato ${editing && editing.pdf_path ? `(actual: ${esc(editing.pdf_path)})` : ''}</span>
           <input id="ct_pdf" type="file" accept="application/pdf">
         </div>
       </div>
@@ -179,15 +179,15 @@ async function renderContratos(main) {
       <div class="grid-2">
         <div class="card gray">
           <div class="label" style="margin-bottom:10px;">Tarifa — Urbano</div>
-          <div class="field"><span class="label">Valor por km (CLP)</span><input id="ctT_uKm" type="number" value="${Number(u.valor_km || 0)}" placeholder="500"></div>
+          <div class="field"><label class="label">Valor por km (CLP)</label><input id="ctT_uKm" type="number" value="${Number(u.valor_km || 0)}" placeholder="500"></div>
           <div style="height:10px;"></div>
-          <div class="field"><span class="label">Valor por minuto de espera (CLP)</span><input id="ctT_uMin" type="number" value="${Number(u.valor_min_espera || 0)}" placeholder="180"></div>
+          <div class="field"><label class="label">Valor por minuto de espera (CLP)</label><input id="ctT_uMin" type="number" value="${Number(u.valor_min_espera || 0)}" placeholder="180"></div>
         </div>
         <div class="card gray">
           <div class="label" style="margin-bottom:10px;">Tarifa — Interurbano</div>
-          <div class="field"><span class="label">Valor por km (CLP)</span><input id="ctT_iKm" type="number" value="${Number(i.valor_km || 0)}" placeholder="400"></div>
+          <div class="field"><label class="label">Valor por km (CLP)</label><input id="ctT_iKm" type="number" value="${Number(i.valor_km || 0)}" placeholder="400"></div>
           <div style="height:10px;"></div>
-          <div class="field"><span class="label">Valor por minuto de espera (CLP)</span><input id="ctT_iMin" type="number" value="${Number(i.valor_min_espera || 0)}" placeholder="150"></div>
+          <div class="field"><label class="label">Valor por minuto de espera (CLP)</label><input id="ctT_iMin" type="number" value="${Number(i.valor_min_espera || 0)}" placeholder="150"></div>
         </div>
       </div>
       <div style="height:8px;"></div>
@@ -278,13 +278,13 @@ async function renderConductores(main) {
       </div>
       <div class="card">
         <div class="label" style="margin-bottom:12px;">Nuevo conductor</div>
-        <div class="field"><span class="label">Nombre completo</span><input id="newDrvName" placeholder="Nombre y apellido"></div>
+        <div class="field"><label class="label">Nombre completo</label><input id="newDrvName" placeholder="Nombre y apellido"></div>
         <div style="height:10px;"></div>
-        <div class="field"><span class="label">RUT</span><input id="newDrvRut" placeholder="12.345.678-9"></div>
+        <div class="field"><label class="label">RUT</label><input id="newDrvRut" placeholder="12.345.678-9"></div>
         <div style="height:10px;"></div>
-        <div class="field"><span class="label">Email</span><input id="newDrvEmail" type="email" placeholder="correo@transportesdiaz.cl"></div>
+        <div class="field"><label class="label">Email</label><input id="newDrvEmail" type="email" placeholder="correo@transportesdiaz.cl"></div>
         <div style="height:10px;"></div>
-        <div class="field"><span class="label">Clave temporal (mín. 8 caracteres)</span><input id="newDrvPass" type="password" placeholder="Se entrega una vez al conductor"></div>
+        <div class="field"><label class="label">Clave temporal (mín. 8 caracteres)</label><input id="newDrvPass" type="password" placeholder="Se entrega una vez al conductor"></div>
         <div style="height:14px;"></div>
         <button class="btn btn-primary btn-block" onclick="addDriver()">Agregar conductor</button>
       </div>
@@ -338,9 +338,9 @@ async function renderVehiculos(main) {
       </div>
       <div class="card">
         <div class="label" style="margin-bottom:12px;">Nuevo vehículo</div>
-        <div class="field"><span class="label">Patente</span><input id="newVehPlate" placeholder="ABCD-12"></div>
+        <div class="field"><label class="label">Patente</label><input id="newVehPlate" placeholder="ABCD-12"></div>
         <div style="height:10px;"></div>
-        <div class="field"><span class="label">Modelo</span><input id="newVehModel" placeholder="Hyundai H1 2024"></div>
+        <div class="field"><label class="label">Modelo</label><input id="newVehModel" placeholder="Hyundai H1 2024"></div>
         <div style="height:14px;"></div>
         <button class="btn btn-primary btn-block" onclick="addVehicle()">Agregar vehículo</button>
       </div>
@@ -422,11 +422,11 @@ function filterCardHTML() {
   return `
     <div class="card no-print" style="margin-bottom:18px;">
       <div class="form-grid">
-        <div class="field"><span class="label">Empresa</span><select id="fClient">${clientOptions(clients, f)}</select></div>
-        <div class="field"><span class="label">Contrato</span><select id="fContract">${contractOptions(contracts, f)}</select></div>
-        <div class="field"><span class="label">Conductor</span><select id="fDriver">${driverOptions(drivers, f)}</select></div>
-        <div class="field"><span class="label">Desde</span><input type="date" id="fFrom" value="${esc(f.from || '')}"></div>
-        <div class="field"><span class="label">Hasta</span><input type="date" id="fTo" value="${esc(f.to || '')}"></div>
+        <div class="field"><label class="label">Empresa</label><select id="fClient">${clientOptions(clients, f)}</select></div>
+        <div class="field"><label class="label">Contrato</label><select id="fContract">${contractOptions(contracts, f)}</select></div>
+        <div class="field"><label class="label">Conductor</label><select id="fDriver">${driverOptions(drivers, f)}</select></div>
+        <div class="field"><label class="label">Desde</label><input type="date" id="fFrom" value="${esc(f.from || '')}"></div>
+        <div class="field"><label class="label">Hasta</label><input type="date" id="fTo" value="${esc(f.to || '')}"></div>
       </div>
     </div>`;
 }

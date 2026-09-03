@@ -15,7 +15,7 @@ export async function render() {
   userBox.innerHTML = `
     <div style="font-size:12px; font-weight:700;">${esc(admin?.name || '')}</div>
     <div style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">${esc(admin?.cargo || '')}</div>
-    <button class="btn btn-outline btn-sm btn-block" onclick="adminLogout()">Cerrar sesión</button>
+    <button class="btn btn-outline btn-sm btn-block" data-action="admin-logout">Cerrar sesión</button>
   `;
 
   const main = document.getElementById('adminMain');
@@ -28,6 +28,21 @@ export async function render() {
     case 'viajes': return renderViajes(main);
     case 'reportes': return renderReportes(main);
   }
+  // Attach data-action handlers (reemplaza inline onclick)
+  setTimeout(() => {
+    document.querySelectorAll('[data-action="admin-logout"]').forEach(el => el.addEventListener('click', () => adminLogout()));
+    document.querySelectorAll('[data-action="save-contract"]').forEach(el => el.addEventListener('click', () => saveContract()));
+    document.querySelectorAll('[data-action="cancel-contract"], [data-action="cancel-contract-edit"]').forEach(el => el.addEventListener('click', () => { state.editingContractId = null; setAdminScreen('clientes'); }));
+    document.querySelectorAll('[data-action="clear-result-clientes"]').forEach(el => el.addEventListener('click', () => { state.result = null; setAdminScreen('clientes'); }));
+    document.querySelectorAll('[data-action="clear-result-conductores"]').forEach(el => el.addEventListener('click', () => { state.result = null; setAdminScreen('conductores'); }));
+    document.querySelectorAll('[data-action="add-driver"]').forEach(el => el.addEventListener('click', () => addDriver()));
+    document.querySelectorAll('[data-action="add-vehicle"]').forEach(el => el.addEventListener('click', () => addVehicle()));
+    document.querySelectorAll('[data-action="download-csv"]').forEach(el => el.addEventListener('click', () => downloadCSV()));
+    document.querySelectorAll('[data-action="print"]').forEach(el => el.addEventListener('click', () => window.print()));
+    document.querySelectorAll('[data-action="range-day"]').forEach(el => el.addEventListener('click', () => quickRange('day')));
+    document.querySelectorAll('[data-action="range-week"]').forEach(el => el.addEventListener('click', () => quickRange('week')));
+    document.querySelectorAll('[data-action="range-month"]').forEach(el => el.addEventListener('click', () => quickRange('month')));
+  }, 0);
 }
 
 window.adminLogout = async () => {
@@ -62,7 +77,7 @@ async function renderClientes(main) {
   const [clients, contracts] = await Promise.all([api.adminListClients(), api.adminListContracts()]);
   main.innerHTML = `
     <div class="admin-header"><h1>Empresas clientes</h1><p>Empresas para las que Transportes Díaz presta servicio (RUT visible solo para admin)</p></div>
-    ${state.result ? `<div class="card" style="border-color:var(--good); margin-bottom:14px;">${esc(state.result)} <button class="btn-outline btn btn-sm" style="float:right;" onclick="state.result=null; setAdminScreen('clientes')">OK</button></div>` : ''}
+    ${state.result ? `<div class="card" style="border-color:var(--good); margin-bottom:14px;">${esc(state.result)} <button class="btn-outline btn btn-sm" style="float:right;" data-action="clear-result-clientes">OK</button></div>` : ''}
     <div class="grid-2" style="margin-bottom:24px;">
       <div class="table-wrap">
         <table>
@@ -191,8 +206,8 @@ async function renderContratos(main) {
       <div style="height:8px;"></div>
       <p style="font-size:11.5px; color:var(--text-dim);">💡 Al editar una tarifa se crea una nueva versión con vigencia desde hoy; los viajes antiguos conservan la tarifa vigente en su fecha.</p>
       <div style="height:14px; display:flex; gap:10px;">
-        <button class="btn btn-primary btn-block" onclick="saveContract()">${editing ? 'Guardar cambios' : 'Crear contrato'}</button>
-        ${editing ? '<button class="btn btn-outline" onclick="state.editingContractId=null; setAdminScreen(\'contratos\')">Cancelar</button>' : ''}
+        <button class="btn btn-primary btn-block" data-action="save-contract">${editing ? 'Guardar cambios' : 'Crear contrato'}</button>
+        ${editing ? '<button class="btn btn-outline" data-action="cancel-contract-edit">Cancelar</button>' : ''}
       </div>
     </div>`;
   main.querySelectorAll('[data-edit]').forEach((b) =>
@@ -257,7 +272,7 @@ async function renderConductores(main) {
   const drivers = await api.adminListDrivers();
   main.innerHTML = `
     <div class="admin-header"><h1>Conductores</h1><p>Cuentas individuales con clave personal (creadas aquí, sin contraseñas en el código)</p></div>
-    ${state.result ? `<div class="card" style="border-color:var(--good); margin-bottom:14px;">${esc(state.result)} <button class="btn-outline btn btn-sm" style="float:right;" onclick="state.result=null; setAdminScreen('conductores')">OK</button></div>` : ''}
+    ${state.result ? `<div class="card" style="border-color:var(--good); margin-bottom:14px;">${esc(state.result)} <button class="btn-outline btn btn-sm" style="float:right;" data-action="clear-result-conductores">OK</button></div>` : ''}
     <div class="grid-2">
       <div class="table-wrap">
         <table>
@@ -284,7 +299,7 @@ async function renderConductores(main) {
         <div style="height:10px;"></div>
         <div class="field"><label for="newDrvPass" class="label">Clave temporal (mín. 8 caracteres)</label><input id="newDrvPass" aria-label="Clave temporal (mín. 8 caracteres)" type="password" placeholder="Se entrega una vez al conductor"></div>
         <div style="height:14px;"></div>
-        <button class="btn btn-primary btn-block" onclick="addDriver()">Agregar conductor</button>
+        <button class="btn btn-primary btn-block" data-action="add-driver">Agregar conductor</button>
       </div>
     </div>`;
   main.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => delDriver(b.dataset.del)));
@@ -336,11 +351,11 @@ async function renderVehiculos(main) {
       </div>
       <div class="card">
         <div class="label" style="margin-bottom:12px;">Nuevo vehículo</div>
-        <div class="field"><label for="newVehPlate" class="label">Patente</label><input id="newVehPlate" aria-label="Patente veh�culo" placeholder="ABCD-12"></div>
+        <div class="field"><label for="newVehPlate" class="label">Patente</label><input id="newVehPlate" aria-label="Patente veh�culo" placeholder="ABCD-12"></div>
         <div style="height:10px;"></div>
-        <div class="field"><label for="newVehModel" class="label">Modelo</label><input id="newVehModel" aria-label="Modelo veh�culo" placeholder="Hyundai H1 2024"></div>
+        <div class="field"><label for="newVehModel" class="label">Modelo</label><input id="newVehModel" aria-label="Modelo veh�culo" placeholder="Hyundai H1 2024"></div>
         <div style="height:14px;"></div>
-        <button class="btn btn-primary btn-block" onclick="addVehicle()">Agregar vehículo</button>
+        <button class="btn btn-primary btn-block" data-action="add-vehicle">Agregar vehículo</button>
       </div>
     </div>`;
   main.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => delVehicle(b.dataset.del)));
@@ -404,11 +419,11 @@ async function renderReportes(main) {
     <div class="admin-header"><h1>Reportes</h1><p>Diario, semanal (viernes) y mensual — exportables a Excel y PDF</p></div>
     ${filterCardHTML()}
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
-      <button class="btn btn-primary" onclick="downloadCSV()">⬇ Exportar Excel (.xlsx)</button>
-      <button class="btn btn-outline" onclick="window.print()">🖨 Exportar / Imprimir PDF</button>
-      <button class="btn btn-outline" onclick="quickRange('day')">Reporte de hoy</button>
-      <button class="btn btn-outline" onclick="quickRange('week')">Semana (hasta el viernes)</button>
-      <button class="btn btn-outline" onclick="quickRange('month')">Reporte mensual</button>
+      <button class="btn btn-primary" data-action="download-csv">⬇ Exportar Excel (.xlsx)</button>
+      <button class="btn btn-outline" data-action="print">🖨 Exportar / Imprimir PDF</button>
+      <button class="btn btn-outline" data-action="range-day">Reporte de hoy</button>
+      <button class="btn btn-outline" data-action="range-week">Semana (hasta el viernes)</button>
+      <button class="btn btn-outline" data-action="range-month">Reporte mensual</button>
     </div>
     <div id="tripsTableWrap">${renderTripsTable(trips, state.filters.meta)}</div>`;
   wireFilters(main);

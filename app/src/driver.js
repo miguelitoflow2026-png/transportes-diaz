@@ -107,8 +107,11 @@ function buildNav() {
     ['perfil', 'Perfil', 'user'],
   ];
   nav.innerHTML = labels
-    .map(([s, label, ic]) => `<button class="${state.driverScreen === s ? 'active' : ''}" onclick="goDriverScreen('${s}')" aria-label="${label}" aria-current="${state.driverScreen === s ? 'page' : 'false'}">${icon(ic)}${label}</button>`)
+    .map(([s, label, ic]) => `<button class="${state.driverScreen === s ? 'active' : ''}" data-screen="${s}" aria-label="${label}" aria-current="${state.driverScreen === s ? 'page' : 'false'}">${icon(ic)}${label}</button>`)
     .join('');
+  nav.querySelectorAll('button[data-screen]').forEach(btn => {
+    btn.addEventListener('click', () => goDriverScreen(btn.dataset.screen));
+  });
 }
 
 export function goDriverScreen(s) {

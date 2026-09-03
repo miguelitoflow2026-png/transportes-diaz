@@ -86,6 +86,18 @@ export function render() {
     scr.querySelectorAll('[data-action="go-activo"]').forEach(el => el.addEventListener('click', () => goDriverScreen('activo')));
     scr.querySelectorAll('[data-action="start-trip"]').forEach(el => el.addEventListener('click', () => startNewTripFlow()));
   }
+  if (state.driverScreen === 'seleccion') {
+    scr.querySelectorAll('[data-action="change-contrato"]').forEach(el => el.addEventListener('change', (e) => onContractChange(e.target.value)));
+    scr.querySelectorAll('[data-action="change-ceco"]').forEach(el => el.addEventListener('change', (e) => { state.newTrip.cecoId = e.target.value; }));
+    scr.querySelectorAll('[data-action="change-vehiculo"]').forEach(el => el.addEventListener('change', (e) => { state.newTrip.vehicleId = e.target.value; }));
+    scr.querySelectorAll('[data-action="confirm-seleccion"]').forEach(el => el.addEventListener('click', () => confirmSeleccion()));
+  }
+  if (state.driverScreen === 'tipoViaje') {
+    scr.querySelectorAll('[data-action="set-tipo-urbano"]').forEach(el => el.addEventListener('click', () => setTripType('urbano')));
+    scr.querySelectorAll('[data-action="set-tipo-interurbano"]').forEach(el => el.addEventListener('click', () => setTripType('interurbano')));
+    scr.querySelectorAll('[data-action="go-puntos"]').forEach(el => el.addEventListener('click', () => goToPuntos()));
+    scr.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', () => goDriverScreen(el.dataset.screen)));
+  }
   if (state.driverScreen === 'activo') {
     // Inicializar mapa Leaflet tras renderizar — doble invalidate para evitar recorte
     setTimeout(() => {
@@ -239,7 +251,7 @@ function screenSeleccion() {
     <div class="card">
       <div class="field">
         <label for="selContrato" class="label">Contrato / Empresa cliente</label>
-        <select id="selContrato" aria-label="Contrato / Empresa cliente" onchange="onContractChange(this.value)">
+        <select id="selContrato" aria-label="Contrato / Empresa cliente" data-action="change-contrato">
           <option value="">Selecciona un contrato…</option>
           ${contractOptions}
         </select>
@@ -247,7 +259,7 @@ function screenSeleccion() {
       <div style="height:12px;"></div>
       <div class="field">
         <label for="selCeco" class="label">Centro de costo (CECO)</label>
-        <select id="selCeco" aria-label="Centro de costo" ${!contract ? 'disabled' : ''} onchange="state.newTrip.cecoId=this.value">
+        <select id="selCeco" aria-label="Centro de costo" ${!contract ? 'disabled' : ''} data-action="change-ceco">
           <option value="">${contract ? 'Selecciona un CECO…' : 'Primero elige un contrato'}</option>
           ${cecoOptions}
         </select>
@@ -255,13 +267,13 @@ function screenSeleccion() {
       <div style="height:12px;"></div>
       <div class="field">
         <label for="selVehiculo" class="label">Vehículo a usar</label>
-        <select id="selVehiculo" aria-label="Vehículo a usar" onchange="state.newTrip.vehicleId=this.value">
+        <select id="selVehiculo" aria-label="Vehículo a usar" data-action="change-vehiculo">
           <option value="">Selecciona un vehículo…</option>
           ${vehicleOptions}
         </select>
       </div>
     </div>
-    <button class="btn btn-primary btn-block" onclick="confirmSeleccion()">Continuar</button>
+    <button class="btn btn-primary btn-block" data-action="confirm-seleccion">Continuar</button>
   `;
 }
 window.onContractChange = (val) => {
@@ -286,7 +298,7 @@ function screenTipoViaje() {
   const ceco = cecoOf(contract, nt.cecoId);
   const veh = vehicleById(nt.vehicleId);
   return `
-    <div class="row"><button class="btn-outline btn btn-sm" onclick="goDriverScreen('seleccion')">← Volver</button></div>
+    <div class="row"><button class="btn-outline btn btn-sm" data-screen="seleccion">← Volver</button></div>
     <div class="screen-title">Tipo de viaje</div>
     <div class="screen-sub">${esc(contract.name || '')}</div>
     <div class="card">
@@ -294,10 +306,10 @@ function screenTipoViaje() {
       <div class="row"><span class="mini-label">VEHÍCULO</span><span style="font-size:12px;">${esc(veh?.plate || '')} · ${esc(veh?.model || '')}</span></div>
     </div>
     <div class="toggle-group">
-      <button class="${nt.tripType === 'urbano' ? 'selected' : ''}" onclick="setTripType('urbano')">Urbano</button>
-      <button class="${nt.tripType === 'interurbano' ? 'selected' : ''}" onclick="setTripType('interurbano')">Interurbano</button>
+      <button class="${nt.tripType === 'urbano' ? 'selected' : ''}" data-action="set-tipo-urbano">Urbano</button>
+      <button class="${nt.tripType === 'interurbano' ? 'selected' : ''}" data-action="set-tipo-interurbano">Interurbano</button>
     </div>
-    <button class="btn btn-primary btn-block" onclick="goToPuntos()">${icon('car')} Continuar — Puntos del viaje</button>
+    <button class="btn btn-primary btn-block" data-action="go-puntos">${icon('car')} Continuar — Puntos del viaje</button>
   `;
 }
 window.setTripType = (t) => {

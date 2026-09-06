@@ -232,12 +232,19 @@ export async function adminCountTripsByVehicle(vehicleId) {
 export async function adminFetchTrips(filters) {
   let q = supabase
     .from('trips')
-    .select('*, contracts(id, client_id, name, clients(name)), cecos(name), drivers(name), vehicles(plate)')
+    .select('*, contracts(id, client_id, name, clients(name)), cecos(name), drivers(name), vehicles(plate)', { count: 'exact' })
     .order('start_time', { ascending: false });
   if (filters.contractId) q = q.eq('contract_id', filters.contractId);
   if (filters.driverId) q = q.eq('driver_id', filters.driverId);
   if (filters.from) q = q.gte('start_time', filters.from);
   if (filters.to) q = q.lte('start_time', filters.to + 'T23:59:59');
+  if (filters.page !== undefined) {
+    const page = filters.page ?? 0;
+    const pageSize = filters.pageSize ?? 50;
+    const { data, error, count } = await q.range(page * pageSize, (page + 1) * pageSize - 1);
+    if (error) throw new Error(error.message);
+    return { data: data || [], count: count ?? 0, page, pageSize };
+  }
   const { data, error } = await q.limit(2000);
   if (error) throw new Error(error.message);
   return data || [];

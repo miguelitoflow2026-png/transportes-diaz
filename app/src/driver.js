@@ -5,7 +5,7 @@ import { state } from './state.js';
 import { esc, icon, showToast, showShell, fmtHM, fmtHMshort, fmtDate, fmtTime, formatCLP } from './lib.js';
 import { loadDriverContext, fetchActiveTrip, createTrip, updateTrip, finalizeTrip, previewAmounts, getMyTrips, getContractPdfUrl, audit } from './api.js';
 import { startTracking, stopTracking, pauseTracking, resumeTracking, getLastPosition, clearTrackingState, setWaitSeconds, haversineMeters, loadTrackingState } from './tracing.js';
-import { initLeafletMap, updateMapRoute, updateMapPosition, destroyMap } from './services/map.js';
+import { initLeafletMap, updateMapRoute, updateMapPosition, destroyMap, recenterMap } from './services/map.js';
 import { searchNominatim } from './services/geocoding.js';
 import { ensureTicker, stopTicker, stopDriverTicker, updateWaitDisplay, updateKmDisplay } from './services/ticker.js';
 
@@ -184,7 +184,6 @@ export function goDriverScreen(s) {
   }
   render();
 }
-window.goDriverScreen = goDriverScreen;
 
 function contractById(id) {
   return (state.driverContext?.contracts || []).find((c) => c.id === id);
@@ -260,7 +259,7 @@ export function startNewTripFlow() {
   state.newTrip = { contractId: null, cecoId: null, vehicleId: null, tripType: 'urbano', puntoInicio: null, puntoFin: null };
   goDriverScreen('seleccion');
 }
-window.startNewTripFlow = startNewTripFlow;
+
 
 function screenSeleccion() {
   const nt = state.newTrip;
@@ -307,12 +306,12 @@ function screenSeleccion() {
     <button class="btn btn-primary btn-block" data-action="confirm-seleccion">Continuar</button>
   `;
 }
-window.onContractChange = (val) => {
+export function onContractChange(val) {
   state.newTrip.contractId = val || null;
   state.newTrip.cecoId = null;
   goDriverScreen('seleccion');
 };
-window.confirmSeleccion = async () => {
+export async function confirmSeleccion() {
   state.newTrip.contractId = document.getElementById('selContrato').value;
   state.newTrip.cecoId = document.getElementById('selCeco').value;
   state.newTrip.vehicleId = document.getElementById('selVehiculo').value;
@@ -343,12 +342,12 @@ function screenTipoViaje() {
     <button class="btn btn-primary btn-block" data-action="go-puntos">${icon('car')} Continuar — Puntos del viaje</button>
   `;
 }
-window.setTripType = (t) => {
+export function setTripType(t) {
   state.newTrip.tripType = t;
   goDriverScreen('tipoViaje');
 };
 
-window.goToPuntos = () => {
+export function goToPuntos() {
   if (!state.newTrip.contractId || !state.newTrip.cecoId || !state.newTrip.vehicleId) {
     showToast('Completa contrato, CECO y vehículo');
     return;
@@ -389,7 +388,7 @@ function screenPuntosViaje() {
   `;
 }
 
-window.onPuntoSearch = (tipo, query) => {
+export function onPuntoSearch(tipo, query) {
   clearTimeout(nominatimTimer);
   const boxId = tipo === 'inicio' ? 'suggestInicio' : 'suggestFin';
   const box = document.getElementById(boxId);
@@ -403,7 +402,7 @@ window.onPuntoSearch = (tipo, query) => {
   }, 400);
 };
 
-window.selectPunto = (tipo, lat, lon, display_name) => {
+export function selectPunto(tipo, lat, lon, display_name) {
   const punto = { lat, lon, display_name };
   if (tipo === 'inicio') state.newTrip.puntoInicio = punto;
   else state.newTrip.puntoFin = punto;
@@ -413,7 +412,7 @@ window.selectPunto = (tipo, lat, lon, display_name) => {
   goDriverScreen('puntos');
 };
 
-window.useMyLocation = (tipo) => {
+export function useMyLocation(tipo) {
   if (!navigator.geolocation) { showToast('Geolocalización no disponible'); return; }
   showToast('Obteniendo tu ubicación…');
   navigator.geolocation.getCurrentPosition(pos => {
@@ -424,9 +423,10 @@ window.useMyLocation = (tipo) => {
   }, err => showToast('No se pudo obtener ubicación: ' + err.message), { enableHighAccuracy: true, timeout: 8000 });
 };
 
-window.beginTripSinPuntos = () => window.beginTrip();
+export function beginTripSinPuntos() {
+return beginTrip(); }
 
-window.beginTrip = async () => {
+export async function beginTrip() {
   const nt = state.newTrip;
   try {
     const trip = await createTrip({
@@ -451,7 +451,7 @@ window.beginTrip = async () => {
   }
 };
 
-window.toggleEspera = async () => {
+export async function toggleEspera() {
   const trip = state.activeTrip;
   if (!trip) return;
   const newStatus = trip.status === 'conduccion' ? 'espera' : 'conduccion';
@@ -468,7 +468,7 @@ window.toggleEspera = async () => {
   } catch (e) { showToast(e.message); }
 };
 
-window.openNavegar = () => {
+export function openNavegar() {
   if (state.activeTrip) {
     const lastPos = getLastPosition();
     if (lastPos && lastPos.lat && lastPos.lon) {
@@ -482,7 +482,7 @@ window.openNavegar = () => {
   showToast('Abriendo navegación externa (Google Maps)…');
 };
 
-window.goResumen = () => {
+export function goResumen() {
   // No paramos el tracking GPS al ir a resumen (solo paramos el ticker UI)
   stopTicker();
   goDriverScreen('resumen');
@@ -669,7 +669,7 @@ async function loadResumenPreview() {
   }
 }
 
-window.changeTripTypeAtSummary = async (t) => {
+export async function changeTripTypeAtSummary(t) {
   const trip = state.activeTrip;
   try {
     const updated = await updateTrip(trip.id, { trip_type: t });
@@ -680,7 +680,7 @@ window.changeTripTypeAtSummary = async (t) => {
   }
 };
 
-window.confirmarViaje = async () => {
+export async function confirmarViaje() {
   const trip = state.activeTrip;
   if (!trip) return;
   try {
@@ -702,7 +702,7 @@ window.confirmarViaje = async () => {
   }
 };
 
-window.openPDF = async (e, pdfPath) => {
+export async function openPDF(e, pdfPath) {
   e?.stopPropagation();
   try {
     const url = await getContractPdfUrl(pdfPath);
@@ -763,7 +763,7 @@ function screenContratos() {
         <div class="divider"></div>
         <div class="row">
           <span style="font-size:12px;">Centros de costo: ${esc((c.cecos || []).map((x) => x.name).join(', '))}</span>
-          ${c.pdf_path ? `<button class="btn-outline btn btn-sm" data-pdf="${c.pdf_path}">Ver PDF</button>` : ''}
+          ${c.pdf_path ? `<button class="btn-outline btn btn-sm" data-pdf="${esc(c.pdf_path)}">Ver PDF</button>` : ''}
         </div>
       </div>`).join('')}
   `;
@@ -783,7 +783,7 @@ function screenPerfil() {
     <button class="btn btn-outline btn-block" data-action="logout">Cerrar sesión</button>
   `;
 }
-window.driverLogout = async () => {
+export async function driverLogout() {
   if (state.activeTrip) stopTracking(state.activeTrip.id);
   stopTicker();
   audit('logout').catch(() => {});

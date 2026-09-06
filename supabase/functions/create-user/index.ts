@@ -15,8 +15,23 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_ANON_KEY') ?? '',
 );
 
+const ALLOWED_ORIGINS = [
+  'https://app-omega-three-94.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') || '';
+  const allowed = ALLOWED_ORIGINS.some(o => origin === o || origin.endsWith('.vercel.app'));
+  return {
+    'Access-Control-Allow-Origin': allowed ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
+  };
+}
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGINS[0],
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -24,10 +39,11 @@ const corsHeaders = {
 const RUT_RE = /^\d{1,2}\.\d{3}\.\d{3}-[\dkK]$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function json(body, status = 200) {
+function json(body, status = 200, req?: Request) {
+  const headers = req ? getCorsHeaders(req) : corsHeaders;
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...headers, 'Content-Type': 'application/json' },
   });
 }
 
@@ -40,8 +56,8 @@ async function services() {
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return json({ ok: true });
-  if (req.method !== 'POST') return json({ error: 'M√©todo no permitido' }, 405);
+  if (req.method === 'OPTIONS') return json({ ok: true }, 200, req);
+  if (req.method !== 'POST') return json({ error: 'M√©todo no permitido' }, 405, req);
 
   const authHeader = req.headers.get('Authorization') ?? '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
@@ -49,7 +65,7 @@ serve(async (req) => {
   // 1) Verifica que quien llama es un admin autenticado.
   const { data: caller, error: callerErr } = await supabase.auth.getUser(token);
   if (callerErr || !caller?.user || caller.user.app_metadata?.role !== 'admin') {
-    return json({ error: 'Solo el personal admin puede crear usuarios' }, 403);
+    return json({ error: 'Solo el personal admin puede crear usuarios' }, 403, req);
   }
 
   // 2) Payload
@@ -57,12 +73,12 @@ serve(async (req) => {
     const body = await req.json();
     const { email, password, name, rut, role, cargo } = body;
 
-    if (!email || !EMAIL_RE.test(email)) return json({ error: 'Email inv√°lido' }, 400);
-    if (!name || name.trim().length < 2) return json({ error: 'Nombre requerido' }, 400);
-    if (!password || password.length < 8) return json({ error: 'La contrase√±a debe tener al menos 8 caracteres' }, 400);
-    if (role !== 'conductor' && role !== 'admin') return json({ error: 'Rol inv√°lido' }, 400);
+    if (!email || !EMAIL_RE.test(email)) return json({ error: 'Email inv·lido' }, 400, req);
+    if (!name || name.trim().length < 2) return json({ error: 'Nombre requerido' }, 400, req);
+    if (!password || password.length < 8) return json({ error: 'La contraseÒa debe tener al menos 8 caracteres' }, 400, req);
+    if (role !== 'conductor' && role !== 'admin') return json({ error: 'Rol inv·lido' }, 400, req);
     if (role === 'conductor') {
-      if (!rut || !RUT_RE.test(rut)) return json({ error: 'RUT inv√°lido (formato xx.xxx.xxx-x)' }, 400);
+      if (!rut || !RUT_RE.test(rut)) return json({ error: 'RUT inv·lido (formato xx.xxx.xxx-x)' }, 400, req);
     }
 
     const admin = await services();
@@ -75,7 +91,7 @@ serve(async (req) => {
       app_metadata: { role },
       user_metadata: { name },
     });
-    if (createErr) return json({ error: createErr.message }, 400);
+    if (createErr) return json({ error: createErr.message }, 400, req);
 
     // 4) Registro en la tabla de negocio correspondiente.
     if (role === 'conductor') {
@@ -84,7 +100,7 @@ serve(async (req) => {
       });
       if (insErr) {
         await admin.auth.admin.deleteUser(created.user.id);
-        return json({ error: 'No se pudo crear el conductor: ' + insErr.message }, 400);
+        return json({ error: 'No se pudo crear el conductor: ' + insErr.message }, 400, req);
       }
     } else {
       const { error: insErr } = await admin.from('admin_users').insert({
@@ -93,7 +109,7 @@ serve(async (req) => {
       });
       if (insErr) {
         await admin.auth.admin.deleteUser(created.user.id);
-        return json({ error: 'No se pudo crear el admin: ' + insErr.message }, 400);
+        return json({ error: 'No se pudo crear el admin: ' + insErr.message }, 400, req);
       }
     }
 
@@ -103,8 +119,8 @@ serve(async (req) => {
       role,
       temporary_password: password, // Se muestra UNA vez a quien la crea.
       note: 'Entregue esta clave al usuario; se recomienda cambiarla en el primer acceso.',
-    }, 201);
+    }, 201, req);
   } catch (e) {
-    return json({ error: 'JSON inv√°lido: ' + e.message }, 400);
+    return json({ error: 'JSON inv·lido: ' + e.message }, 400, req);
   }
 });

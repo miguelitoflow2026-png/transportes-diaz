@@ -45,18 +45,19 @@ export async function render() {
   }, 0);
 }
 
-window.adminLogout = async () => {
+export async function adminLogout() {
   api.audit('logout').catch(() => {});
   await supabase.auth.signOut().catch(() => {});
-};
-window.setAdminScreen = (s) => {
+}
+export function setAdminScreen(s) {
   state.adminScreen = s;
   render();
-};
+}
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.admin-side button[data-s]');
-  if (btn && !e.target.closest('.admin-side-user')) window.setAdminScreen(btn.dataset.s);
+  if (btn && !e.target.closest('.admin-side-user')) setAdminScreen(btn.dataset.s);
 });
+// Compatibilidad temporal para onclick legacy que aún no migrados
 
 let adminSideCache = null;
 async function getAdminSide() {
@@ -106,7 +107,7 @@ async function renderClientes(main) {
   main.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => delClient(b.dataset.del)));
 }
 
-window.addClient = async () => {
+export async function addClient() {
   const name = document.getElementById('newClientName').value.trim();
   const rut = document.getElementById('newClientRut').value.trim();
   if (!name) { showToast('Ingresa el nombre de la empresa'); return; }
@@ -118,7 +119,7 @@ window.addClient = async () => {
   } catch (e) { showToast(e.message); }
 };
 
-window.delClient = async (id) => {
+export async function delClient(id) {
   try {
     const n = await api.adminCountContractsForClient(id);
     if (n > 0) { showToast('No se puede eliminar: tiene contratos asociados'); return; }
@@ -218,7 +219,7 @@ async function renderContratos(main) {
   );
 }
 
-window.saveContract = async () => {
+export async function saveContract() {
   const clientId = document.getElementById('ct_client').value;
   const name = document.getElementById('ct_name').value.trim();
   const vigenciaDesde = document.getElementById('ct_vig').value;
@@ -305,7 +306,7 @@ async function renderConductores(main) {
   main.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => delDriver(b.dataset.del)));
 }
 
-window.addDriver = async () => {
+export async function addDriver() {
   const name = document.getElementById('newDrvName').value.trim();
   const rut = document.getElementById('newDrvRut').value.trim();
   const email = document.getElementById('newDrvEmail').value.trim();
@@ -320,7 +321,7 @@ window.addDriver = async () => {
   } catch (e) { showToast(e.message); }
 };
 
-window.delDriver = async (id) => {
+export async function delDriver(id) {
   try {
     const n = await api.adminCountTripsByDriver(id);
     if (n > 0) { showToast(`No se puede eliminar: tiene ${n} viaje(s). Mejor desactiva su usuario en lugar de borrarlo.`); return; }
@@ -361,7 +362,7 @@ async function renderVehiculos(main) {
   main.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => delVehicle(b.dataset.del)));
 }
 
-window.addVehicle = async () => {
+export async function addVehicle() {
   const plate = document.getElementById('newVehPlate').value.trim();
   const model = document.getElementById('newVehModel').value.trim();
   if (!plate) { showToast('Ingresa la patente'); return; }
@@ -373,7 +374,7 @@ window.addVehicle = async () => {
   } catch (e) { showToast(e.message); }
 };
 
-window.delVehicle = async (id) => {
+export async function delVehicle(id) {
   try {
     const n = await api.adminCountTripsByVehicle(id);
     if (n > 0) { showToast(`No se puede eliminar: tiene ${n} viaje(s).`); return; }
@@ -485,7 +486,7 @@ function applyFilters() {
   if (wrap) wrap.innerHTML = renderTripsTable(filtered, state.filters.meta);
 }
 
-window.quickRange = (type) => {
+export function quickRange(type) {
   const today = new Date();
   let from, to;
   if (type === 'day') { from = today; to = today; }
@@ -533,7 +534,7 @@ function renderTripsTable(trips, meta) {
     </div>`;
 }
 
-window.downloadCSV = async () => {
+export async function downloadCSV() {
   applyFilters();
   const trips = (state.filters.trips || []).filter((t) => matchesCurrentFilters(t));
   if (!trips.length) { showToast('No hay viajes para exportar con este filtro'); return; }

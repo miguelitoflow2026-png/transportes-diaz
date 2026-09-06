@@ -109,12 +109,11 @@ export function releaseWakeLock() {
 export async function syncToSupabase(tripId, data) {
   if (!tripId) return;
 
-  // 1) Actualizar totales en trips (km, espera y pausa separados)
+  // 1) Actualizar solo tiempos en trips; km es autoritativo vía trip_positions y finalize_trip (no direct update spoofeable)
   try {
     await supabase
       .from('trips')
       .update({
-        total_km: data.totalKm,
         total_wait_seconds: data.totalWaitSeconds,
         total_pause_seconds: data.totalPauseSeconds ?? 0,
         updated_at: new Date().toISOString(),

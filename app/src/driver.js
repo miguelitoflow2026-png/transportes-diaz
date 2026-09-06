@@ -456,12 +456,11 @@ window.toggleEspera = async () => {
   if (!trip) return;
   const newStatus = trip.status === 'conduccion' ? 'espera' : 'conduccion';
   if (!canTransition(trip.status, newStatus)) { showToast(`Transición no válida: ${trip.status} → ${newStatus}`); return; }
-  const currentKm = trip.total_km ?? 0;
   const currentWait = trip.total_wait_seconds ?? 0;
   try {
-    const updated = await updateTrip(trip.id, { status: newStatus, total_km: currentKm, total_wait_seconds: currentWait });
-    const serverKm = Number(updated.total_km ?? 0);
-    if (currentKm > serverKm) { updated.total_km = currentKm; updateTrip(trip.id, { total_km: currentKm }).catch(() => {}); }
+    const updated = await updateTrip(trip.id, { status: newStatus, total_wait_seconds: currentWait });
+    // Preservar km local (calculado vía GPS) para display, sin persistir spoofeable al servidor
+    updated.total_km = trip.total_km ?? 0;
     state.activeTrip = updated;
     if (newStatus === 'espera') { currentWatchState = 'espera'; }
     else if (newStatus === 'conduccion') { await resumeGpsTracking(); currentWatchState = 'conduccion'; }

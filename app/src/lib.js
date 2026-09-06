@@ -26,9 +26,13 @@ export function fmtHM(totalSeconds) {
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 export function fmtHMshort(totalSeconds) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) totalSeconds = 0;
   const h = Math.floor(totalSeconds / 3600);
-  const m = Math.round((totalSeconds % 3600) / 60);
-  return `${pad(h)}:${pad(m)}`;
+  let m = Math.round((totalSeconds % 3600) / 60);
+  // Corrección carry: 60 min -> 1h
+  let hh = h;
+  if (m >= 60) { hh += 1; m = 0; }
+  return `${pad(hh)}:${pad(m)}`;
 }
 export function fmtDate(iso) {
   if (!iso) return '—';

@@ -763,7 +763,7 @@ function screenContratos() {
         <div class="divider"></div>
         <div class="row">
           <span style="font-size:12px;">Centros de costo: ${esc((c.cecos || []).map((x) => x.name).join(', '))}</span>
-          ${c.pdf_path ? `<button class="btn-outline btn btn-sm" data-pdf="${c.pdf_path}">Ver PDF</button>` : ''}
+          ${c.pdf_path ? `<button class="btn-outline btn btn-sm" data-pdf="${esc(c.pdf_path)}">Ver PDF</button>` : ''}
         </div>
       </div>`).join('')}
   `;

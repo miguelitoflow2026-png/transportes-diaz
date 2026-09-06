@@ -13,22 +13,34 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_ANON_KEY') ?? '',
 );
 
+const ALLOWED_ORIGINS = ['https://app-omega-three-94.vercel.app','http://localhost:5173','http://localhost:3000'];
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') || '';
+  const allowed = ALLOWED_ORIGINS.some(o => origin === o || origin.endsWith('.vercel.app'));
+  return {
+    'Access-Control-Allow-Origin': allowed ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
+  };
+}
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGINS[0],
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-function json(body, status = 200) {
+function json(body, status = 200, req?: Request) {
+  const headers = req ? getCorsHeaders(req) : corsHeaders;
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...headers, 'Content-Type': 'application/json' },
   });
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return json({ ok: true });
-  if (req.method !== 'POST') return json({ error: 'Método no permitido' }, 405);
+  if (req.method === 'OPTIONS') return json({ ok: true }, 200, req);
+  if (req.method !== 'POST') return json({ error: 'Método no permitido' }, 405, req);
 
   const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
   const { data: caller, error: callerErr } = await supabase.auth.getUser(token);

@@ -173,7 +173,6 @@ export function goDriverScreen(s) {
       if (state.activeTrip.status === 'conduccion' && currentWatchState !== 'conduccion') {
         startGpsTracking();
       } else if (state.activeTrip.status === 'espera' && currentWatchState !== 'espera') {
-        pauseGpsTracking();
         currentWatchState = 'espera';
       }
     } else {
@@ -464,7 +463,7 @@ window.toggleEspera = async () => {
     const serverKm = Number(updated.total_km ?? 0);
     if (currentKm > serverKm) { updated.total_km = currentKm; updateTrip(trip.id, { total_km: currentKm }).catch(() => {}); }
     state.activeTrip = updated;
-    if (newStatus === 'espera') { pauseGpsTracking(); currentWatchState = 'espera'; }
+    if (newStatus === 'espera') { currentWatchState = 'espera'; }
     else if (newStatus === 'conduccion') { await resumeGpsTracking(); currentWatchState = 'conduccion'; }
     render();
   } catch (e) { showToast(e.message); }

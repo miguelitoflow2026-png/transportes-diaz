@@ -125,14 +125,13 @@ export async function syncToSupabase(tripId, data) {
     console.warn('Sync trips falló:', e.message);
   }
 
-  // 2) Insertar solo puntos nuevos (no duplicar) — con cola IndexedDB si offline
-  // Primero reintentar cola pendiente
   try {
     const queued = await dequeueAll();
     if (queued.length > 0) {
-      const { error: qErr } = await supabase.from('trip_positions').insert(queued);
-      if (qErr) { await enqueue(queued); throw qErr; }
-      console.log(`[OfflineQueue] ${queued.length} puntos reenviados`);
+      const cleanQueued = queued.map(({ id, enqueuedAt, ...rest }) => rest);
+      const { error: qErr } = await supabase.from('trip_positions').insert(cleanQueued);
+      if (qErr) { await enqueue(cleanQueued); throw qErr; }
+      console.log(`[OfflineQueue] ${cleanQueued.length} puntos reenviados`);
     }
   } catch (e) {
     if (!navigator.onLine) console.log('[OfflineQueue] aún offline, se reintentará');
@@ -250,6 +249,26 @@ export function startTracking(tripId, onPositionUpdate) {
 
     // DEBUG temporal: log de posición cruda (remover después de depurar V)
     console.log('[GPS raw]', { latitude, longitude, accuracy: accuracy?.toFixed(1), speed: speed?.toFixed(1), heading, timestamp: new Date(timestamp).toISOString(), lastLat, lastLon, routePointsLen: routePoints.length });
+
+    // Actualizar lastGps para isVehicleMoving siempre (incluso si luego se descarta para ruta)
+    lastGpsSpeed = speed;
+    lastGpsTime = Date.now();
+
+    // En espera: no agregar a ruta/km, solo actualizar marcador para que isVehicleMoving funcione
+    const isWaitMode = state.activeTrip?.status === 'espera';
+    if (isWaitMode) {
+      // Solo actualizar última posición conocida para el mapa, sin sumar km ni agregar a polyline
+      lastLat = latitude;
+      lastLon = longitude;
+      lastRecordedAt = new Date(timestamp).toISOString();
+      onPositionUpdate?.({
+        lat: latitude, lon: longitude, accuracy, altitude, speed, heading,
+        totalKm, totalWaitSeconds, totalPauseSeconds,
+        routePoints: [...routePoints],
+        incKm: 0,
+      });
+      return;
+    }
 
     // --- Fix 1: descartar coordenadas nulas/inválidas ---
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {

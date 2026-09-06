@@ -184,7 +184,6 @@ export function goDriverScreen(s) {
   }
   render();
 }
-window.goDriverScreen = goDriverScreen; // compat, ahora export
 
 function contractById(id) {
   return (state.driverContext?.contracts || []).find((c) => c.id === id);
@@ -308,13 +307,11 @@ function screenSeleccion() {
   `;
 }
 export function onContractChange(val) {
-window.onContractChange = onContractChange;
   state.newTrip.contractId = val || null;
   state.newTrip.cecoId = null;
   goDriverScreen('seleccion');
 };
 export async function confirmSeleccion() {
-window.confirmSeleccion = confirmSeleccion;
   state.newTrip.contractId = document.getElementById('selContrato').value;
   state.newTrip.cecoId = document.getElementById('selCeco').value;
   state.newTrip.vehicleId = document.getElementById('selVehiculo').value;
@@ -346,13 +343,11 @@ function screenTipoViaje() {
   `;
 }
 export function setTripType(t) {
-window.setTripType = setTripType;
   state.newTrip.tripType = t;
   goDriverScreen('tipoViaje');
 };
 
 export function goToPuntos() {
-window.goToPuntos = goToPuntos;
   if (!state.newTrip.contractId || !state.newTrip.cecoId || !state.newTrip.vehicleId) {
     showToast('Completa contrato, CECO y vehículo');
     return;
@@ -394,7 +389,6 @@ function screenPuntosViaje() {
 }
 
 export function onPuntoSearch(tipo, query) {
-window.onPuntoSearch = onPuntoSearch;
   clearTimeout(nominatimTimer);
   const boxId = tipo === 'inicio' ? 'suggestInicio' : 'suggestFin';
   const box = document.getElementById(boxId);
@@ -409,7 +403,6 @@ window.onPuntoSearch = onPuntoSearch;
 };
 
 export function selectPunto(tipo, lat, lon, display_name) {
-window.selectPunto = selectPunto;
   const punto = { lat, lon, display_name };
   if (tipo === 'inicio') state.newTrip.puntoInicio = punto;
   else state.newTrip.puntoFin = punto;
@@ -420,7 +413,6 @@ window.selectPunto = selectPunto;
 };
 
 export function useMyLocation(tipo) {
-window.useMyLocation = useMyLocation;
   if (!navigator.geolocation) { showToast('Geolocalización no disponible'); return; }
   showToast('Obteniendo tu ubicación…');
   navigator.geolocation.getCurrentPosition(pos => {
@@ -432,9 +424,10 @@ window.useMyLocation = useMyLocation;
 };
 
 export function beginTripSinPuntos() {
-window.beginTripSinPuntos = beginTripSinPuntos; return window.beginTrip(); }
+return window.beginTrip(); }
 
-window.beginTrip = async () => {
+export async function beginTrip() {
+window.beginTrip = beginTrip;
   const nt = state.newTrip;
   try {
     const trip = await createTrip({
@@ -459,7 +452,8 @@ window.beginTrip = async () => {
   }
 };
 
-window.toggleEspera = async () => {
+export async function toggleEspera() {
+window.toggleEspera = toggleEspera;
   const trip = state.activeTrip;
   if (!trip) return;
   const newStatus = trip.status === 'conduccion' ? 'espera' : 'conduccion';
@@ -476,7 +470,8 @@ window.toggleEspera = async () => {
   } catch (e) { showToast(e.message); }
 };
 
-window.openNavegar = () => {
+export function openNavegar() {
+window.openNavegar = openNavegar;
   if (state.activeTrip) {
     const lastPos = getLastPosition();
     if (lastPos && lastPos.lat && lastPos.lon) {
@@ -490,7 +485,8 @@ window.openNavegar = () => {
   showToast('Abriendo navegación externa (Google Maps)…');
 };
 
-window.goResumen = () => {
+export function goResumen() {
+window.goResumen = goResumen;
   // No paramos el tracking GPS al ir a resumen (solo paramos el ticker UI)
   stopTicker();
   goDriverScreen('resumen');
@@ -677,7 +673,8 @@ async function loadResumenPreview() {
   }
 }
 
-window.changeTripTypeAtSummary = async (t) => {
+export async function changeTripTypeAtSummary(t) {
+window.changeTripTypeAtSummary = changeTripTypeAtSummary;
   const trip = state.activeTrip;
   try {
     const updated = await updateTrip(trip.id, { trip_type: t });
@@ -688,7 +685,8 @@ window.changeTripTypeAtSummary = async (t) => {
   }
 };
 
-window.confirmarViaje = async () => {
+export async function confirmarViaje() {
+window.confirmarViaje = confirmarViaje;
   const trip = state.activeTrip;
   if (!trip) return;
   try {
@@ -710,7 +708,8 @@ window.confirmarViaje = async () => {
   }
 };
 
-window.openPDF = async (e, pdfPath) => {
+export async function openPDF(e, pdfPath) {
+window.openPDF = openPDF;
   e?.stopPropagation();
   try {
     const url = await getContractPdfUrl(pdfPath);
@@ -791,7 +790,8 @@ function screenPerfil() {
     <button class="btn btn-outline btn-block" data-action="logout">Cerrar sesión</button>
   `;
 }
-window.driverLogout = async () => {
+export async function driverLogout() {
+window.driverLogout = driverLogout;
   if (state.activeTrip) stopTracking(state.activeTrip.id);
   stopTicker();
   audit('logout').catch(() => {});

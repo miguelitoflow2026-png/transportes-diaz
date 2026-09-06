@@ -13,6 +13,14 @@ let watchId = null;
 let wakeLock = null;
 let syncTimer = null;
 let isTracking = false;
+let lastGpsSpeed = null;
+let lastGpsTime = null;
+
+export function isVehicleMoving() {
+  if (lastGpsSpeed != null) return lastGpsSpeed > 2; // 2 m/s = 7.2 km/h
+  if (lastGpsTime && Date.now() - lastGpsTime < 10000) return false; // sin dato reciente, asumir detenido
+  return false;
+}
 
 // -----------------------------------------------------------
 // Haversine: distancia en metros entre dos puntos lat/lon
@@ -180,6 +188,7 @@ export function startTracking(tripId, onPositionUpdate) {
   let lastLat = null;
   let lastLon = null;
   let lastRecordedAt = null;
+  let lastSpeed = null;
   let syncedCount = 0;
 
   if (saved) {
@@ -189,6 +198,7 @@ export function startTracking(tripId, onPositionUpdate) {
     lastLat = saved.lastLat;
     lastLon = saved.lastLon;
     lastRecordedAt = saved.lastRecordedAt;
+    lastSpeed = saved.lastSpeed ?? null;
     let loadedPoints = saved.routePoints ?? [];
     // Limpieza de puntos viejos erráticos (mancha negra/V): filtrar 0,0, NaN, fuera de Chile y saltos >50km entre puntos consecutivos
     const CHILE_BOUNDS = { latMin: -56, latMax: -17, lonMin: -76, lonMax: -66 };
@@ -281,22 +291,21 @@ export function startTracking(tripId, onPositionUpdate) {
         return;
       }
       if (distM >= MIN_DISTANCE_M) {
+        if (speed != null && speed < 2 && distM < 10) {
+          console.log(`[GPS no polyline] baja velocidad ${speed.toFixed(1)}m/s y dist ${distM.toFixed(1)}m <10m — parado, solo marcador`);
+          lastLat = latitude; lastLon = longitude; lastRecordedAt = new Date(timestamp).toISOString();
+          lastGpsSpeed = speed; lastGpsTime = Date.now();
+          onPositionUpdate?.({ lat: latitude, lon: longitude, accuracy, altitude, speed, heading, totalKm, totalWaitSeconds, totalPauseSeconds, routePoints: [...routePoints], incKm: 0 });
+          return;
+        }
         incKm = distM / 1000;
         totalKm = Math.round((totalKm + incKm) * 100) / 100;
         shouldAddToPolyline = true;
       } else {
-        // Movimiento 0.5-5m: NO agregar a polyline para evitar mancha negra por puntos densos
         console.log(`[GPS no polyline] movimiento pequeño ${distM.toFixed(1)}m (<5m), solo actualiza posición`);
-        // Actualizar lastLat/Lon pero no agregar a ruta densa
-        lastLat = latitude;
-        lastLon = longitude;
-        lastRecordedAt = new Date(timestamp).toISOString();
-        // Notificar solo posición, sin agregar a routePoints
-        onPositionUpdate?.({
-          lat: latitude, lon: longitude, accuracy, altitude, speed, heading,
-          totalKm, totalWaitSeconds, totalPauseSeconds,
-          routePoints: [...routePoints], incKm: 0,
-        });
+        lastLat = latitude; lastLon = longitude; lastRecordedAt = new Date(timestamp).toISOString();
+        lastGpsSpeed = speed; lastGpsTime = Date.now();
+        onPositionUpdate?.({ lat: latitude, lon: longitude, accuracy, altitude, speed, heading, totalKm, totalWaitSeconds, totalPauseSeconds, routePoints: [...routePoints], incKm: 0 });
         return;
       }
     } else if (routePoints.length > 0) {
@@ -309,21 +318,17 @@ export function startTracking(tripId, onPositionUpdate) {
       // Para recarga, el primer punto nuevo debe ser >=5m del último guardado para ser considerado movimiento real
       if (distM < MIN_DISTANCE_M) {
         console.log(`[GPS primer punto post-recarga] ${distM.toFixed(1)}m <5m, esperando movimiento real`);
-        // No agregar aún, pero actualizar lastLat para próxima comparación
         lastLat = latitude; lastLon = longitude; lastRecordedAt = new Date(timestamp).toISOString();
+        lastGpsSpeed = speed; lastGpsTime = Date.now();
         return;
       }
       shouldAddToPolyline = true;
     } else {
-      // Primer punto absoluto del viaje — siempre agregar
       shouldAddToPolyline = true;
     }
 
-    // Actualizar último punto conocido y guardar en ruta solo si es movimiento real
-    lastLat = latitude;
-    lastLon = longitude;
-    lastRecordedAt = new Date(timestamp).toISOString();
-
+    lastLat = latitude; lastLon = longitude; lastRecordedAt = new Date(timestamp).toISOString();
+    lastSpeed = speed; lastGpsSpeed = speed; lastGpsTime = Date.now();
     if (shouldAddToPolyline) {
       routePoints.push({ lat: latitude, lon: longitude, accuracy, altitude, speed, heading, timestamp: lastRecordedAt });
       if (routePoints.length > 500) routePoints.shift(); // límite memoria

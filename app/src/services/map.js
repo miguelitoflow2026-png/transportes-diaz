@@ -71,6 +71,17 @@ export function initLeafletMap() {
   };
   addOsrmRoute();
   routePolyline = L.polyline([], { color: '#1a237e', weight: 4, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(leafletMap);
+  // Restaurar ruta histórica si existe (para persistencia sin distorsión al recargar)
+  try {
+    const saved = JSON.parse(localStorage.getItem('td-trip-tracking') || 'null');
+    if (saved && saved.routePoints && saved.routePoints.length > 0 && saved.tripId === state.activeTrip?.id) {
+      const latLngs = saved.routePoints.map(p => [p.lat, p.lon]).filter(p => p[0] != null && p[1] != null);
+      if (latLngs.length > 0) {
+        routePolyline.setLatLngs(latLngs);
+        console.log('[Mapa] ruta histórica restaurada', latLngs.length, 'puntos');
+      }
+    }
+  } catch (e) { console.warn('No se pudo restaurar ruta histórica', e); }
   positionMarker = L.circleMarker([0, 0], { radius: 10, fillColor: '#2563eb', color: '#fff', weight: 3, opacity: 1, fillOpacity: 1 }).addTo(leafletMap);
   const pulse = L.circleMarker([0, 0], { radius: 18, fillColor: '#2563eb', color: '#2563eb', weight: 1, opacity: 0.25, fillOpacity: 0.15 }).addTo(leafletMap);
   const origSetLatLng = positionMarker.setLatLng.bind(positionMarker);
@@ -90,7 +101,9 @@ export function initLeafletMap() {
       if (pos.lat !== 0 || pos.lng !== 0) leafletMap.setView([pos.lat, pos.lng], 17, { animate: true });
     }
   };
-  leafletMap.on('dragstart zoomstart', () => { followUser = false; });
+  // Solo desactivar seguimiento si el usuario arrastra/hace zoom manualmente (con originalEvent), no en setView/fitBounds programáticos
+  leafletMap.on('dragstart', (e) => { if (e.originalEvent) followUser = false; });
+  leafletMap.on('zoomstart', (e) => { if (e.originalEvent) followUser = false; });
 }
 
 export function updateMapRoute(routePoints) {

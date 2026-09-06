@@ -1,7 +1,7 @@
 // services/ticker.js — Ticker de espera y helpers de display extraídos de driver.js
 import { state } from '../state.js';
 import { updateTrip } from '../api.js';
-import { setWaitSeconds } from '../tracing.js';
+import { setWaitSeconds, isVehicleMoving } from '../tracing.js';
 import { fmtHM } from '../lib.js';
 
 let ticker = null;
@@ -15,6 +15,14 @@ export function ensureTicker() {
       if (!trip) return;
       tickCount++;
       if (trip.status === 'espera') {
+        if (isVehicleMoving()) {
+          console.log('[Espera] vehículo en movimiento (' + (isVehicleMoving() ? 'sí' : 'no') + ') — conteo pausado');
+          const el = document.getElementById('wait-display');
+          if (el) el.style.opacity = '0.5';
+          return;
+        }
+        const el = document.getElementById('wait-display');
+        if (el) el.style.opacity = '1';
         trip.total_wait_seconds = (trip.total_wait_seconds ?? 0) + 1;
         try { setWaitSeconds(trip.id, trip.total_wait_seconds); } catch (e) {}
         updateWaitDisplay(trip.total_wait_seconds);

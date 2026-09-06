@@ -59,11 +59,12 @@ export function initLeafletMap() {
       if (routePolyline && routePolyline.getLatLngs().length === 0) {
         leafletMap.fitBounds(osrmLine.getBounds(), { padding: [30, 30], maxZoom: 15 });
       }
-      window._osrmSteps = route.legs[0]?.steps || [];
-      window._osrmSummary = { distance: route.distance, duration: route.duration };
+      // Guardar en módulo para posible uso futuro (antes window._osrm*)
+      const osrmSteps = route.legs[0]?.steps || [];
+      const osrmSummary = { distance: route.distance, duration: route.duration };
       const summaryEl = document.getElementById('route-summary');
       if (summaryEl) {
-        summaryEl.textContent = `${(route.distance/1000).toFixed(1)} km · ${Math.round(route.duration/60)} min · ${window._osrmSteps.length} giros`;
+        summaryEl.textContent = `${(route.distance/1000).toFixed(1)} km · ${Math.round(route.duration/60)} min · ${osrmSteps.length} giros`;
         summaryEl.classList.remove('hidden');
       }
     } catch (e) {
@@ -95,13 +96,8 @@ export function initLeafletMap() {
     ro.observe(container);
   }
   window.addEventListener('resize', () => leafletMap.invalidateSize());
-  window.recenterMap = () => {
-    followUser = true;
-    if (positionMarker && positionMarker.getLatLng) {
-      const pos = positionMarker.getLatLng();
-      if (pos.lat !== 0 || pos.lng !== 0) leafletMap.setView([pos.lat, pos.lng], 17, { animate: true });
-    }
-  };
+  // Compatibilidad: exponer también en window por si queda algún onclick legacy
+  window.recenterMap = recenterMap;
   // Solo desactivar seguimiento si el usuario arrastra/hace zoom manualmente (con originalEvent), no en setView/fitBounds programáticos
   leafletMap.on('dragstart', (e) => { if (e.originalEvent) followUser = false; });
   leafletMap.on('zoomstart', (e) => { if (e.originalEvent) followUser = false; });
@@ -135,6 +131,14 @@ export function updateMapPosition(lat, lon, accuracy) {
 
 export function destroyMap() {
   if (leafletMap) { try { leafletMap.remove(); } catch (e) {} leafletMap = null; routePolyline = null; positionMarker = null; }
+}
+
+export function recenterMap() {
+  followUser = true;
+  if (leafletMap && positionMarker && positionMarker.getLatLng) {
+    const pos = positionMarker.getLatLng();
+    if (pos.lat !== 0 || pos.lng !== 0) leafletMap.setView([pos.lat, pos.lng], 17, { animate: true });
+  }
 }
 
 export function setFollowUser(v) { followUser = v; }

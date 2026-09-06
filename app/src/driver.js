@@ -5,7 +5,7 @@ import { state } from './state.js';
 import { esc, icon, showToast, showShell, fmtHM, fmtHMshort, fmtDate, fmtTime, formatCLP } from './lib.js';
 import { loadDriverContext, fetchActiveTrip, createTrip, updateTrip, finalizeTrip, previewAmounts, getMyTrips, getContractPdfUrl, audit } from './api.js';
 import { startTracking, stopTracking, pauseTracking, resumeTracking, getLastPosition, clearTrackingState, setWaitSeconds, haversineMeters, loadTrackingState } from './tracing.js';
-import { initLeafletMap, updateMapRoute, updateMapPosition, destroyMap } from './services/map.js';
+import { initLeafletMap, updateMapRoute, updateMapPosition, destroyMap, recenterMap } from './services/map.js';
 import { searchNominatim } from './services/geocoding.js';
 import { ensureTicker, stopTicker, stopDriverTicker, updateWaitDisplay, updateKmDisplay } from './services/ticker.js';
 

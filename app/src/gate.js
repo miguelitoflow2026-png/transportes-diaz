@@ -60,12 +60,13 @@ export function render() {
         <div style="height:16px;"></div>
         <button class="btn btn-primary btn-block" data-step="chooseRole">Volver al inicio</button>
         <div style="height:10px;"></div>
-        <button class="btn btn-outline btn-block" onclick="gateSignOut()">Cerrar sesión</button>
+        <button class="btn btn-outline btn-block" data-action="gate-signout">Cerrar sesión</button>
       </div>`;
     gate.querySelector('[data-step="chooseRole"]').addEventListener('click', () => {
       step = 'chooseRole';
       render();
     });
+    gate.querySelector('[data-action="gate-signout"]').addEventListener('click', () => gateSignOut());
     return;
   }
 

@@ -58,8 +58,6 @@ document.addEventListener('click', (e) => {
   if (btn && !e.target.closest('.admin-side-user')) setAdminScreen(btn.dataset.s);
 });
 // Compatibilidad temporal para onclick legacy que aún no migrados
-window.adminLogout = adminLogout;
-window.setAdminScreen = setAdminScreen;
 
 let adminSideCache = null;
 async function getAdminSide() {
@@ -110,7 +108,6 @@ async function renderClientes(main) {
 }
 
 export async function addClient() {
-window.addClient = addClient;
   const name = document.getElementById('newClientName').value.trim();
   const rut = document.getElementById('newClientRut').value.trim();
   if (!name) { showToast('Ingresa el nombre de la empresa'); return; }
@@ -123,7 +120,6 @@ window.addClient = addClient;
 };
 
 export async function delClient(id) {
-window.delClient = delClient;
   try {
     const n = await api.adminCountContractsForClient(id);
     if (n > 0) { showToast('No se puede eliminar: tiene contratos asociados'); return; }
@@ -224,7 +220,6 @@ async function renderContratos(main) {
 }
 
 export async function saveContract() {
-window.saveContract = saveContract;
   const clientId = document.getElementById('ct_client').value;
   const name = document.getElementById('ct_name').value.trim();
   const vigenciaDesde = document.getElementById('ct_vig').value;
@@ -312,7 +307,6 @@ async function renderConductores(main) {
 }
 
 export async function addDriver() {
-window.addDriver = addDriver;
   const name = document.getElementById('newDrvName').value.trim();
   const rut = document.getElementById('newDrvRut').value.trim();
   const email = document.getElementById('newDrvEmail').value.trim();
@@ -328,7 +322,6 @@ window.addDriver = addDriver;
 };
 
 export async function delDriver(id) {
-window.delDriver = delDriver;
   try {
     const n = await api.adminCountTripsByDriver(id);
     if (n > 0) { showToast(`No se puede eliminar: tiene ${n} viaje(s). Mejor desactiva su usuario en lugar de borrarlo.`); return; }
@@ -370,7 +363,6 @@ async function renderVehiculos(main) {
 }
 
 export async function addVehicle() {
-window.addVehicle = addVehicle;
   const plate = document.getElementById('newVehPlate').value.trim();
   const model = document.getElementById('newVehModel').value.trim();
   if (!plate) { showToast('Ingresa la patente'); return; }
@@ -383,7 +375,6 @@ window.addVehicle = addVehicle;
 };
 
 export async function delVehicle(id) {
-window.delVehicle = delVehicle;
   try {
     const n = await api.adminCountTripsByVehicle(id);
     if (n > 0) { showToast(`No se puede eliminar: tiene ${n} viaje(s).`); return; }
@@ -495,7 +486,7 @@ function applyFilters() {
   if (wrap) wrap.innerHTML = renderTripsTable(filtered, state.filters.meta);
 }
 
-window.quickRange = (type) => {
+export function quickRange(type) {
   const today = new Date();
   let from, to;
   if (type === 'day') { from = today; to = today; }
@@ -544,7 +535,6 @@ function renderTripsTable(trips, meta) {
 }
 
 export async function downloadCSV() {
-window.downloadCSV = downloadCSV;
   applyFilters();
   const trips = (state.filters.trips || []).filter((t) => matchesCurrentFilters(t));
   if (!trips.length) { showToast('No hay viajes para exportar con este filtro'); return; }

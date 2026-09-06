@@ -424,10 +424,9 @@ export function useMyLocation(tipo) {
 };
 
 export function beginTripSinPuntos() {
-return window.beginTrip(); }
+return beginTrip(); }
 
 export async function beginTrip() {
-window.beginTrip = beginTrip;
   const nt = state.newTrip;
   try {
     const trip = await createTrip({
@@ -453,7 +452,6 @@ window.beginTrip = beginTrip;
 };
 
 export async function toggleEspera() {
-window.toggleEspera = toggleEspera;
   const trip = state.activeTrip;
   if (!trip) return;
   const newStatus = trip.status === 'conduccion' ? 'espera' : 'conduccion';
@@ -471,7 +469,6 @@ window.toggleEspera = toggleEspera;
 };
 
 export function openNavegar() {
-window.openNavegar = openNavegar;
   if (state.activeTrip) {
     const lastPos = getLastPosition();
     if (lastPos && lastPos.lat && lastPos.lon) {
@@ -486,7 +483,6 @@ window.openNavegar = openNavegar;
 };
 
 export function goResumen() {
-window.goResumen = goResumen;
   // No paramos el tracking GPS al ir a resumen (solo paramos el ticker UI)
   stopTicker();
   goDriverScreen('resumen');
@@ -674,7 +670,6 @@ async function loadResumenPreview() {
 }
 
 export async function changeTripTypeAtSummary(t) {
-window.changeTripTypeAtSummary = changeTripTypeAtSummary;
   const trip = state.activeTrip;
   try {
     const updated = await updateTrip(trip.id, { trip_type: t });
@@ -686,7 +681,6 @@ window.changeTripTypeAtSummary = changeTripTypeAtSummary;
 };
 
 export async function confirmarViaje() {
-window.confirmarViaje = confirmarViaje;
   const trip = state.activeTrip;
   if (!trip) return;
   try {
@@ -709,7 +703,6 @@ window.confirmarViaje = confirmarViaje;
 };
 
 export async function openPDF(e, pdfPath) {
-window.openPDF = openPDF;
   e?.stopPropagation();
   try {
     const url = await getContractPdfUrl(pdfPath);
@@ -791,7 +784,6 @@ function screenPerfil() {
   `;
 }
 export async function driverLogout() {
-window.driverLogout = driverLogout;
   if (state.activeTrip) stopTracking(state.activeTrip.id);
   stopTicker();
   audit('logout').catch(() => {});

@@ -13,10 +13,10 @@ export function resetToRoles() {
   gateError = '';
 }
 
-window.gateSignOut = async () => {
+export async function gateSignOut() {
   audit('logout').catch(() => {});
   await supabase.auth.signOut().catch(() => {});
-};
+}
 
 export function render() {
   step = state.missingRole ? 'missingRole' : step;

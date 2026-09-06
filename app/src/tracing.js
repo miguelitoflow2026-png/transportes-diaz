@@ -22,18 +22,7 @@ export function isVehicleMoving() {
   return false;
 }
 
-// -----------------------------------------------------------
-// Haversine: distancia en metros entre dos puntos lat/lon
-// -----------------------------------------------------------
-export function haversineMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371000; // radio Tierra en metros
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2
-    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.asin(Math.sqrt(a));
-}
+export { haversineMeters } from './lib.js';
 
 // -----------------------------------------------------------
 // localStorage: persistencia del estado del viaje
@@ -108,7 +97,9 @@ export function releaseWakeLock() {
 // -----------------------------------------------------------
 export async function syncToSupabase(tripId, data) {
   if (!tripId) return;
-
+  if (syncing) { console.log('[Sync] ya en curso, omite duplicado'); return; }
+  syncing = true;
+  try {
   // 1) Actualizar solo tiempos en trips; km es autoritativo vía trip_positions y finalize_trip (no direct update spoofeable)
   try {
     await supabase
@@ -162,6 +153,7 @@ export async function syncToSupabase(tripId, data) {
       else console.warn('Sync positions falló, encolado:', e.message);
     }
   }
+  } finally { syncing = false; }
 }
 
 // -----------------------------------------------------------
@@ -403,16 +395,24 @@ export function startTracking(tripId, onPositionUpdate) {
     }
   }, SYNC_INTERVAL_MS);
 
-  // Reintento inmediato al volver online
+  // Reintento inmediato al volver online — guarda referencia para remover en stop
   const onOnline = async () => {
     console.log('Conexión recuperada, reintentando sync...');
     const s = loadTrackingState(tripId);
     if (s && s.lastLat != null) await syncToSupabase(tripId, s);
   };
   window.addEventListener('online', onOnline);
+  // Guardar para cleanup
+  startTracking._onOnline = onOnline;
+  startTracking._tripId = tripId;
 }
 
+let syncing = false;
 export function stopTracking(tripId) {
+  if (startTracking._onOnline) {
+    window.removeEventListener('online', startTracking._onOnline);
+    startTracking._onOnline = null;
+  }
   if (!isTracking) return;
   isTracking = false;
 
@@ -438,6 +438,10 @@ export function stopTracking(tripId) {
 }
 
 export function pauseTracking() {
+  if (startTracking._onOnline) {
+    window.removeEventListener('online', startTracking._onOnline);
+    startTracking._onOnline = null;
+  }
   if (watchId) {
     navigator.geolocation.clearWatch(watchId);
     watchId = null;

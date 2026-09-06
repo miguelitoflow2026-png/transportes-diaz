@@ -2,6 +2,7 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { state } from '../state.js';
+import { haversineMeters } from '../lib.js';
 
 let leafletMap = null;
 let routePolyline = null;
@@ -112,14 +113,7 @@ export function updateMapRoute(routePoints) {
   const latLngs = routePoints.map(p => [p.lat, p.lon]).filter(p => p[0] != null && p[1] != null && Number.isFinite(p[0]) && Number.isFinite(p[1]));
   if (latLngs.length === 0) return;
   const bounds = L.latLngBounds(latLngs);
-  const R = 6371000;
-  const toRad = d => d * Math.PI / 180;
-  const haversine = (lat1, lon1, lat2, lon2) => {
-    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-    return R * 2 * Math.asin(Math.sqrt(a));
-  };
-  const diagKm = haversine(bounds.getSouthWest().lat, bounds.getSouthWest().lng, bounds.getNorthEast().lat, bounds.getNorthEast().lng) / 1000;
+  const diagKm = haversineMeters(bounds.getSouthWest().lat, bounds.getSouthWest().lng, bounds.getNorthEast().lat, bounds.getNorthEast().lng) / 1000;
   if (diagKm > 100) {
     if (followUser && latLngs.length > 0) leafletMap.setView(latLngs[latLngs.length - 1], leafletMap.getZoom(), { animate: false });
   } else if (followUser && latLngs.length === 1) {

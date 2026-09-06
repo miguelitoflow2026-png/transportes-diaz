@@ -14,6 +14,5 @@ export const state = {
   newTrip: {},         // armado de nuevo viaje
 
   editingContractId: null,
-  uploadFile: null,    // PDF elegido en el form de contrato
   filters: {},
 };

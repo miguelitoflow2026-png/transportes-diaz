@@ -24,7 +24,17 @@ export async function applyView() {
 }
 
 function reset() {
-  driver.stopDriverTicker();
+  try { driver.stopDriverTicker(); } catch {}
+  try {
+    const raw = localStorage.getItem('td-trip-tracking');
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s?.tripId) {
+        // Import dinámico para no crear ciclo driver<->tracing
+        import('./tracing.js').then(m => { try { m.stopTracking(s.tripId); } catch {} }).catch(()=>{});
+      }
+    }
+  } catch {}
   state.user = null;
   state.role = null;
   state.mode = 'gate';

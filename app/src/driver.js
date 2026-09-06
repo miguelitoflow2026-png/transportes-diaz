@@ -184,7 +184,7 @@ export function goDriverScreen(s) {
   }
   render();
 }
-window.goDriverScreen = goDriverScreen;
+window.goDriverScreen = goDriverScreen; // compat, ahora export
 
 function contractById(id) {
   return (state.driverContext?.contracts || []).find((c) => c.id === id);
@@ -260,7 +260,7 @@ export function startNewTripFlow() {
   state.newTrip = { contractId: null, cecoId: null, vehicleId: null, tripType: 'urbano', puntoInicio: null, puntoFin: null };
   goDriverScreen('seleccion');
 }
-window.startNewTripFlow = startNewTripFlow;
+
 
 function screenSeleccion() {
   const nt = state.newTrip;
@@ -307,12 +307,14 @@ function screenSeleccion() {
     <button class="btn btn-primary btn-block" data-action="confirm-seleccion">Continuar</button>
   `;
 }
-window.onContractChange = (val) => {
+export function onContractChange(val) {
+window.onContractChange = onContractChange;
   state.newTrip.contractId = val || null;
   state.newTrip.cecoId = null;
   goDriverScreen('seleccion');
 };
-window.confirmSeleccion = async () => {
+export async function confirmSeleccion() {
+window.confirmSeleccion = confirmSeleccion;
   state.newTrip.contractId = document.getElementById('selContrato').value;
   state.newTrip.cecoId = document.getElementById('selCeco').value;
   state.newTrip.vehicleId = document.getElementById('selVehiculo').value;
@@ -343,12 +345,14 @@ function screenTipoViaje() {
     <button class="btn btn-primary btn-block" data-action="go-puntos">${icon('car')} Continuar — Puntos del viaje</button>
   `;
 }
-window.setTripType = (t) => {
+export function setTripType(t) {
+window.setTripType = setTripType;
   state.newTrip.tripType = t;
   goDriverScreen('tipoViaje');
 };
 
-window.goToPuntos = () => {
+export function goToPuntos() {
+window.goToPuntos = goToPuntos;
   if (!state.newTrip.contractId || !state.newTrip.cecoId || !state.newTrip.vehicleId) {
     showToast('Completa contrato, CECO y vehículo');
     return;
@@ -389,7 +393,8 @@ function screenPuntosViaje() {
   `;
 }
 
-window.onPuntoSearch = (tipo, query) => {
+export function onPuntoSearch(tipo, query) {
+window.onPuntoSearch = onPuntoSearch;
   clearTimeout(nominatimTimer);
   const boxId = tipo === 'inicio' ? 'suggestInicio' : 'suggestFin';
   const box = document.getElementById(boxId);
@@ -403,7 +408,8 @@ window.onPuntoSearch = (tipo, query) => {
   }, 400);
 };
 
-window.selectPunto = (tipo, lat, lon, display_name) => {
+export function selectPunto(tipo, lat, lon, display_name) {
+window.selectPunto = selectPunto;
   const punto = { lat, lon, display_name };
   if (tipo === 'inicio') state.newTrip.puntoInicio = punto;
   else state.newTrip.puntoFin = punto;
@@ -413,7 +419,8 @@ window.selectPunto = (tipo, lat, lon, display_name) => {
   goDriverScreen('puntos');
 };
 
-window.useMyLocation = (tipo) => {
+export function useMyLocation(tipo) {
+window.useMyLocation = useMyLocation;
   if (!navigator.geolocation) { showToast('Geolocalización no disponible'); return; }
   showToast('Obteniendo tu ubicación…');
   navigator.geolocation.getCurrentPosition(pos => {
@@ -424,7 +431,8 @@ window.useMyLocation = (tipo) => {
   }, err => showToast('No se pudo obtener ubicación: ' + err.message), { enableHighAccuracy: true, timeout: 8000 });
 };
 
-window.beginTripSinPuntos = () => window.beginTrip();
+export function beginTripSinPuntos() {
+window.beginTripSinPuntos = beginTripSinPuntos; return window.beginTrip(); }
 
 window.beginTrip = async () => {
   const nt = state.newTrip;
